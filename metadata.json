@@ -1,0 +1,7 @@
+{
+  "name": "Whieda Smart",
+  "description": "Plateforme intégrée boutique, pharmacie, cabinet médical et gestion MLM partenaires avec caisse POS et bilans de santé.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
