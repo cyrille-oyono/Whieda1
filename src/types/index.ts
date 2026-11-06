@@ -75,6 +75,7 @@ export interface Partner {
   sponsorCode?: string;
   cardStatus?: PartnerCardStatus; // Statut carte (Start, Standard, Premium, VIP)
   qualificationStatus?: PartnerQualification; // Qualifié / Non qualifié
+  binaryPosition?: 'left' | 'right'; // Position dans l'arbre binaire (Branche Gauche ou Droite)
   totalDirectEarnings: number; // Gains directs accumulés (FCFA)
   paidEarnings: number; // Déjà réglé
   remainingEarnings: number; // Reste à payer

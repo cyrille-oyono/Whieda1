@@ -25,7 +25,13 @@ import {
   ChevronDown,
   Crown,
   Sparkles,
-  Check
+  Check,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Network,
+  Eye,
+  CheckCircle2
 } from 'lucide-react';
 import { 
   generateGlobalAdminReportPDF, 
@@ -39,6 +45,11 @@ export const PartnersView: React.FC = () => {
   // Sub-tabs: 'table' (Tableau 10 colonnes) or 'tree' (Arbre généalogique)
   const [activeTab, setActiveTab] = useState<'table' | 'tree'>('table');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Tree View Presentation: 'photo-model' (Schéma Graphique Binaire comme sur la photo) or 'hierarchy-list'
+  const [treeSubMode, setTreeSubMode] = useState<'photo-model' | 'hierarchy-list'>('photo-model');
+  const [treeZoom, setTreeZoom] = useState<number>(1);
+  const [inspectedPartnerId, setInspectedPartnerId] = useState<string>('ptn-1');
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -523,212 +534,565 @@ export const PartnersView: React.FC = () => {
       )}
 
       {/* ===================================================================== */}
-      {/* VUE 2: ARBORESCENCE & GÉNÉALOGIE DU RÉSEAU (ARBRE MLM INTERACTIF)     */}
+      {/* VUE 2: ARBORESCENCE & GÉNÉALOGIE DU RÉSEAU (MODÈLE SCHÉMA PHOTO)      */}
       {/* ===================================================================== */}
-      {activeTab === 'tree' && (
-        <div className="bg-white rounded-2xl border border-neutral-200 shadow-xs p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <GitFork className="w-5 h-5 text-orange-600" />
-                <h3 className="font-extrabold text-neutral-900 text-base">
-                  Arborescence Généalogique du Réseau (Arbre MLM)
-                </h3>
-              </div>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                Vue hiérarchique : visualisez les parrains, filleuls, statuts de carte et répartition des PV par branche
-              </p>
-            </div>
+      {activeTab === 'tree' && (() => {
+        // Predefined node coordinates matching user's photo sketch:
+        // Top: OYONO UP (Root)
+        // Left Branch: IDRIS AWOULE -> Béatrice Manga (-> Sophie, Mireille) + Ibrahim Traoré
+        // Right Branch: SARA OYONO -> Jean-Marc Etoa (-> Eric, Alain) + Chantal Bilong (-> David -> Carine)
+        const predefinedPositions: Record<string, { x: number; y: number; parentId?: string }> = {
+          'ptn-1': { x: 550, y: 75 }, // OYONO UP (Root)
+          'ptn-2': { x: 275, y: 200, parentId: 'ptn-1' }, // IDRIS AWOULE (Branche Gauche)
+          'ptn-3': { x: 825, y: 200, parentId: 'ptn-1' }, // SARA OYONO (Branche Droite)
+          'ptn-4': { x: 140, y: 330, parentId: 'ptn-2' }, // BÉATRICE MANGA
+          'ptn-5': { x: 410, y: 330, parentId: 'ptn-2' }, // IBRAHIM TRAORÉ
+          'ptn-8': { x: 690, y: 330, parentId: 'ptn-3' }, // JEAN-MARC ETOA
+          'ptn-9': { x: 960, y: 330, parentId: 'ptn-3' }, // CHANTAL BILONG
+          'ptn-6': { x: 70, y: 470, parentId: 'ptn-4' }, // SOPHIE MBALLA
+          'ptn-7': { x: 210, y: 470, parentId: 'ptn-4' }, // MIREILLE FOTSO
+          'ptn-10': { x: 620, y: 470, parentId: 'ptn-8' }, // ERIC KOUAM
+          'ptn-11': { x: 760, y: 470, parentId: 'ptn-8' }, // ALAIN NGUEMO
+          'ptn-12': { x: 960, y: 470, parentId: 'ptn-9' }, // DAVID KENMOGNE
+          'ptn-13': { x: 960, y: 600, parentId: 'ptn-12' }, // CARINE ATANGANA
+        };
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsTreePrintModalOpen(true)}
-                className="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Imprimer l'Arbre du Réseau</span>
-              </button>
+        const getPartnerPos = (p: Partner) => {
+          if (predefinedPositions[p.id]) return predefinedPositions[p.id];
+          if (p.sponsorId && predefinedPositions[p.sponsorId]) {
+            const parentPos = predefinedPositions[p.sponsorId];
+            const isLeft = p.binaryPosition === 'left' || (!p.binaryPosition && getDirectDownlines(p.sponsorId).indexOf(p) % 2 === 0);
+            return {
+              x: Math.max(50, Math.min(1050, parentPos.x + (isLeft ? -75 : 75))),
+              y: parentPos.y + 130,
+              parentId: p.sponsorId,
+            };
+          }
+          return { x: 550, y: 75 };
+        };
 
-              <button
-                onClick={handleDownloadNetworkTreePDF}
-                className="px-3.5 py-1.5 bg-neutral-900 hover:bg-black text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs"
-              >
-                <FileDown className="w-3.5 h-3.5 text-orange-400" />
-                <span>Exporter PDF</span>
-              </button>
-            </div>
-          </div>
+        const inspectedPartner = partners.find(p => p.id === inspectedPartnerId) || partners[0];
+        const inspectedDownlines = inspectedPartner ? getDirectDownlines(inspectedPartner.id) : [];
 
-          {/* Interactive Tree View Nodes */}
-          <div className="space-y-4">
-            {rootPartners.map(root => {
-              const rootDownlines = getDirectDownlines(root.id);
-              const card = root.cardStatus || (root.level === 'Diamant' ? 'VIP' : root.level === 'Or' ? 'Premium' : 'Start');
-              const qual = root.qualificationStatus || (root.totalPv >= 100 ? 'Qualifié' : 'Non qualifié');
-
-              return (
-                <div key={root.id} className="border border-amber-300 rounded-2xl bg-amber-50/30 p-4 space-y-3">
-                  {/* Root Node Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-amber-200 shadow-xs">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-xs">
-                        <Crown className="w-5 h-5 text-amber-100" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-neutral-900 text-sm">{root.firstName} {root.lastName}</span>
-                          <span className="font-mono text-xs font-bold text-red-600">({root.code})</span>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-100 text-purple-800 border border-purple-200">
-                            {card}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            qual === 'Qualifié' ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-500'
-                          }`}>
-                            {qual}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2">
-                          <span>Tête de réseau principal</span>
-                          <span>·</span>
-                          <span>Inscrit le : {root.registeredAt || '2025-11-04'}</span>
-                          <span>·</span>
-                          <span className="text-orange-700 font-bold">{rootDownlines.length} filleul(s) direct(s)</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-xs font-mono">
-                      <div>
-                        <span className="text-neutral-400 block text-[10px]">PV Totaux</span>
-                        <span className="font-bold text-amber-700 text-sm">{formatPV(root.totalPv)}</span>
-                      </div>
-                      <div>
-                        <span className="text-neutral-400 block text-[10px]">Gains Directs</span>
-                        <span className="font-bold text-neutral-900 text-sm">{formatMoney(root.totalDirectEarnings)}</span>
-                      </div>
-                      <button
-                        onClick={() => setSelectedPartnerForSheet(root)}
-                        className="px-2.5 py-1 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-800 font-bold text-xs flex items-center gap-1 transition-colors"
-                      >
-                        <FileText className="w-3.5 h-3.5" />
-                        <span>Fiche</span>
-                      </button>
-                    </div>
+        return (
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-xs p-6 space-y-6">
+            {/* Header Toolbar */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center font-bold">
+                    <GitFork className="w-5 h-5 text-orange-600" />
                   </div>
-
-                  {/* Downline Children (Level 1) */}
-                  <div className="pl-6 sm:pl-10 space-y-3 border-l-2 border-dashed border-amber-300 ml-4">
-                    {rootDownlines.length === 0 ? (
-                      <div className="text-xs text-neutral-400 italic py-2">
-                        Aucun filleul rattaché pour l'instant.
-                      </div>
-                    ) : (
-                      rootDownlines.map(child => {
-                        const childDownlines = getDirectDownlines(child.id);
-                        const childCard = child.cardStatus || (child.level === 'Diamant' ? 'VIP' : child.level === 'Or' ? 'Premium' : child.level === 'Argent' ? 'Standard' : 'Start');
-                        const childQual = child.qualificationStatus || (child.totalPv >= 100 ? 'Qualifié' : 'Non qualifié');
-
-                        return (
-                          <div key={child.id} className="space-y-2.5">
-                            {/* Child Level 1 Card */}
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-neutral-200 shadow-2xs hover:border-orange-300 transition-colors">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-lg bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 text-xs font-mono">
-                                  1
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-neutral-900">{child.firstName} {child.lastName}</span>
-                                    <span className="font-mono text-xs text-neutral-500">({child.code})</span>
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                      childCard === 'VIP' ? 'bg-purple-100 text-purple-800' :
-                                      childCard === 'Premium' ? 'bg-orange-100 text-orange-800' :
-                                      childCard === 'Standard' ? 'bg-blue-100 text-blue-800' :
-                                      'bg-neutral-100 text-neutral-700'
-                                    }`}>
-                                      {childCard}
-                                    </span>
-                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                                      childQual === 'Qualifié' ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'
-                                    }`}>
-                                      {childQual}
-                                    </span>
-                                  </div>
-                                  <div className="text-[10px] text-neutral-400 mt-0.5">
-                                    Parrain : {root.firstName} {root.lastName} · {childDownlines.length} filleul(s) direct(s)
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-3 text-xs font-mono">
-                                <div>
-                                  <span className="text-neutral-400 block text-[9px]">PV</span>
-                                  <span className="font-bold text-amber-700">{formatPV(child.totalPv)}</span>
-                                </div>
-                                <div>
-                                  <span className="text-neutral-400 block text-[9px]">Gains</span>
-                                  <span className="font-bold text-neutral-900">{formatMoney(child.totalDirectEarnings)}</span>
-                                </div>
-                                <button
-                                  onClick={() => setSelectedPartnerForSheet(child)}
-                                  className="px-2 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-semibold flex items-center gap-1"
-                                >
-                                  <FileText className="w-3 h-3" />
-                                  <span>Fiche</span>
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Level 2 Children */}
-                            {childDownlines.length > 0 && (
-                              <div className="pl-6 sm:pl-8 space-y-2 border-l-2 border-dashed border-orange-200 ml-3">
-                                {childDownlines.map(grandChild => {
-                                  const grandCard = grandChild.cardStatus || 'Start';
-                                  const grandQual = grandChild.qualificationStatus || 'Qualifié';
-
-                                  return (
-                                    <div key={grandChild.id} className="flex items-center justify-between bg-neutral-50/70 p-2.5 rounded-lg border border-neutral-200 text-xs">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-neutral-400 font-mono text-[10px]">└── Niv 2:</span>
-                                        <span className="font-bold text-neutral-800">{grandChild.firstName} {grandChild.lastName}</span>
-                                        <span className="font-mono text-[10px] text-neutral-500">({grandChild.code})</span>
-                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-neutral-200 text-neutral-700">
-                                          {grandCard}
-                                        </span>
-                                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                                          grandQual === 'Qualifié' ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-200 text-neutral-600'
-                                        }`}>
-                                          {grandQual}
-                                        </span>
-                                      </div>
-
-                                      <div className="flex items-center gap-3 font-mono">
-                                        <span className="font-bold text-amber-700">{grandChild.totalPv} PV</span>
-                                        <span className="text-neutral-600">{formatMoney(grandChild.totalDirectEarnings)}</span>
-                                        <button
-                                          onClick={() => setSelectedPartnerForSheet(grandChild)}
-                                          className="p-1 text-neutral-400 hover:text-orange-600"
-                                          title="Voir fiche"
-                                        >
-                                          <FileText className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
+                  <div>
+                    <h3 className="font-extrabold text-neutral-900 text-base">
+                      Système Réseau · Modèle d'Arborescence Binaire
+                    </h3>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      Reproduction fidèle du schéma manuscrit : nœuds circulaires, filiation binaire, statut de carte et Points de Valeur (PV)
+                    </p>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+
+              {/* View Switcher, Zoom & Export Actions */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Switcher: Modèle Photo vs Liste */}
+                <div className="flex items-center p-1 bg-neutral-100 rounded-lg text-xs font-semibold">
+                  <button
+                    onClick={() => setTreeSubMode('photo-model')}
+                    className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                      treeSubMode === 'photo-model'
+                        ? 'bg-white text-orange-600 shadow-2xs font-bold'
+                        : 'text-neutral-600 hover:text-neutral-900'
+                    }`}
+                  >
+                    <Network className="w-3.5 h-3.5" />
+                    <span>Modèle Schéma (Photo)</span>
+                  </button>
+                  <button
+                    onClick={() => setTreeSubMode('hierarchy-list')}
+                    className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 ${
+                      treeSubMode === 'hierarchy-list'
+                        ? 'bg-white text-orange-600 shadow-2xs font-bold'
+                        : 'text-neutral-600 hover:text-neutral-900'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Vue Liste Dépliante</span>
+                  </button>
+                </div>
+
+                {/* Zoom Controls (Active in photo-model mode) */}
+                {treeSubMode === 'photo-model' && (
+                  <div className="flex items-center bg-neutral-100 p-1 rounded-lg text-xs">
+                    <button
+                      onClick={() => setTreeZoom(z => Math.max(0.65, Number((z - 0.1).toFixed(1))))}
+                      className="p-1 hover:bg-white rounded text-neutral-600 hover:text-neutral-900 transition-colors"
+                      title="Zoom arrière"
+                    >
+                      <ZoomOut className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="px-2 font-mono text-[11px] text-neutral-600 font-bold">
+                      {Math.round(treeZoom * 100)}%
+                    </span>
+                    <button
+                      onClick={() => setTreeZoom(z => Math.min(1.4, Number((z + 0.1).toFixed(1))))}
+                      className="p-1 hover:bg-white rounded text-neutral-600 hover:text-neutral-900 transition-colors"
+                      title="Zoom avant"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setTreeZoom(1)}
+                      className="p-1 hover:bg-white rounded text-neutral-600 hover:text-neutral-900 transition-colors ml-0.5"
+                      title="Réinitialiser zoom"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Print & PDF Buttons */}
+                <button
+                  onClick={() => setIsTreePrintModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimer le Schéma</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadNetworkTreePDF}
+                  className="px-3.5 py-1.5 bg-neutral-900 hover:bg-black text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all"
+                >
+                  <FileDown className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Exporter PDF</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ================================================================= */}
+            {/* SOUS-VUE A: MODÈLE GRAPHIQUE SCHÉMA BINAIRE (CONFORME À LA PHOTO)  */}
+            {/* ================================================================= */}
+            {treeSubMode === 'photo-model' && (
+              <div className="space-y-4">
+                {/* Visual Canvas Container with Pan/Scroll */}
+                <div className="relative border-2 border-orange-200/80 rounded-2xl bg-gradient-to-b from-orange-50/30 via-white to-amber-50/20 shadow-inner overflow-hidden">
+                  {/* Top Bar with Handwritten Title & Leg Badges */}
+                  <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-orange-100 bg-white/70 backdrop-blur-xs">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl font-black text-neutral-900 tracking-tight font-serif italic text-orange-950">
+                          Système Réseau
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                          Modèle Manuscrit MLM
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-neutral-500 mt-0.5">
+                        Cliquez sur un cercle pour inspecter le partenaire ou imprimer sa fiche individuelle
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="px-3 py-1 rounded-full bg-orange-100/90 text-orange-900 font-bold border border-orange-200 shadow-2xs">
+                        ← Branche Gauche (Left Leg)
+                      </span>
+                      <span className="px-3 py-1 rounded-full bg-orange-100/90 text-orange-900 font-bold border border-orange-200 shadow-2xs">
+                        Branche Droite (Right Leg) →
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Scalable SVG & HTML Diagram Viewport */}
+                  <div className="overflow-x-auto overflow-y-auto max-h-[640px] p-6 flex justify-center">
+                    <div
+                      className="relative transition-transform duration-150 origin-top"
+                      style={{
+                        width: '1100px',
+                        height: '690px',
+                        transform: `scale(${treeZoom})`,
+                        marginBottom: treeZoom < 1 ? `-${(1 - treeZoom) * 600}px` : `${(treeZoom - 1) * 200}px`,
+                      }}
+                    >
+                      {/* SVG Vector Connecting Lines */}
+                      <svg
+                        className="absolute inset-0 w-full h-full pointer-events-none"
+                        viewBox="0 0 1100 690"
+                      >
+                        <defs>
+                          <linearGradient id="treeBranchGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#ea580c" />
+                            <stop offset="100%" stopColor="#f59e0b" />
+                          </linearGradient>
+                        </defs>
+
+                        {partners.map(p => {
+                          const pos = getPartnerPos(p);
+                          if (!pos.parentId) return null;
+                          const parentPartner = partners.find(par => par.id === pos.parentId);
+                          if (!parentPartner) return null;
+                          const parentPos = getPartnerPos(parentPartner);
+
+                          return (
+                            <g key={`branch-line-${p.id}`}>
+                              {/* Connector line */}
+                              <line
+                                x1={parentPos.x}
+                                y1={parentPos.y}
+                                x2={pos.x}
+                                y2={pos.y}
+                                stroke="url(#treeBranchGrad)"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                              />
+                              {/* Connector Joint Dot */}
+                              <circle
+                                cx={pos.x}
+                                cy={pos.y}
+                                r="3.5"
+                                fill="#ea580c"
+                              />
+                            </g>
+                          );
+                        })}
+                      </svg>
+
+                      {/* HTML Nodes (Circles & Labels matching photo) */}
+                      {partners.map(p => {
+                        const pos = getPartnerPos(p);
+                        const isSelected = inspectedPartnerId === p.id;
+                        const isRoot = !pos.parentId || p.id === 'ptn-1';
+                        const card = p.cardStatus || 'Start';
+
+                        return (
+                          <div
+                            key={`node-${p.id}`}
+                            onClick={() => setInspectedPartnerId(p.id)}
+                            className={`absolute cursor-pointer transition-all duration-200 select-none ${
+                              isSelected ? 'z-30' : 'hover:z-20'
+                            }`}
+                            style={{
+                              left: `${pos.x}px`,
+                              top: `${pos.y}px`,
+                              transform: 'translate(-50%, -50%)',
+                            }}
+                          >
+                            <div className="flex flex-col items-center">
+                              {/* The Circle (Nœud circulaire du schéma) */}
+                              <div
+                                className={`w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all duration-150 ${
+                                  isRoot
+                                    ? 'bg-gradient-to-tr from-amber-500 to-orange-500 text-white ring-4 ring-amber-300 shadow-md scale-105'
+                                    : isSelected
+                                    ? 'bg-white text-orange-600 ring-4 ring-orange-500 shadow-lg scale-110'
+                                    : 'bg-white text-neutral-800 ring-3 ring-orange-300 hover:ring-orange-500 hover:shadow-md'
+                                }`}
+                              >
+                                {isRoot ? (
+                                  <Crown className="w-5 h-5 text-amber-100" />
+                                ) : (
+                                  <span className="font-extrabold text-xs font-mono">
+                                    {p.firstName[0]}{p.lastName[0]}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Connected Annotation Card (Nom, Statut Carte, PV) */}
+                              <div
+                                className={`mt-1.5 w-36 bg-white/95 backdrop-blur-xs rounded-xl p-2 border text-center transition-all ${
+                                  isSelected
+                                    ? 'border-orange-500 ring-2 ring-orange-400/50 shadow-md'
+                                    : 'border-neutral-200 shadow-2xs hover:border-orange-400'
+                                }`}
+                              >
+                                <div className="font-black text-[11px] text-neutral-900 truncate uppercase tracking-tight">
+                                  {p.firstName} {p.lastName}
+                                </div>
+                                <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200">
+                                    {card}
+                                  </span>
+                                  <span className="font-bold text-[11px] text-amber-700 font-mono">
+                                    {p.totalPv} PV
+                                  </span>
+                                </div>
+                                <div className="text-[9px] text-neutral-400 font-mono mt-0.5">
+                                  {p.code}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Bottom Canvas Footer Guide */}
+                  <div className="p-3 bg-neutral-50/80 border-t border-orange-100 flex flex-wrap items-center justify-between text-xs text-neutral-600 gap-2">
+                    <div className="flex items-center gap-4">
+                      <span className="font-semibold text-neutral-800">Légende :</span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />
+                        <span>Tête de réseau</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-3 h-3 rounded-full bg-white border border-orange-500 inline-block" />
+                        <span>Membre / Filleul</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-3 h-3 rounded-md bg-orange-100 text-orange-800 font-bold text-[9px] px-1 inline-flex items-center justify-center">START</span>
+                        <span>Statut Carte</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 font-mono font-bold text-amber-700">
+                        ● PV = Points de Valeur
+                      </span>
+                    </div>
+
+                    <div className="text-neutral-500 text-[11px]">
+                      Total : <strong className="text-neutral-900">{partners.length}</strong> membres cartographiés dans l'arbre
+                    </div>
+                  </div>
+                </div>
+
+                {/* Partner Details Inspector Drawer */}
+                {inspectedPartner && (
+                  <div className="p-5 bg-gradient-to-r from-orange-50/80 via-white to-amber-50/80 rounded-2xl border border-orange-200 shadow-xs animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      {/* Left: Partner identity */}
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-red-600 to-orange-600 text-white flex items-center justify-center font-black text-base shadow-xs">
+                          {inspectedPartner.firstName[0]}{inspectedPartner.lastName[0]}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-neutral-900 text-sm">
+                              {inspectedPartner.firstName} {inspectedPartner.lastName}
+                            </span>
+                            <span className="font-mono text-xs font-bold text-red-600">
+                              ({inspectedPartner.code})
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-orange-100 text-orange-800 border border-orange-200">
+                              Carte : {inspectedPartner.cardStatus || 'Start'}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                              {inspectedPartner.qualificationStatus || 'Qualifié'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-neutral-500 mt-1 flex flex-wrap items-center gap-2">
+                            <span>Parrain : <strong>{inspectedPartner.sponsorName || 'Tête de Réseau'}</strong></span>
+                            <span>·</span>
+                            <span>Filleuls directs : <strong className="text-orange-700">{inspectedDownlines.length}</strong></span>
+                            <span>·</span>
+                            <span>Inscrit le : <span className="font-mono">{inspectedPartner.registeredAt || '2026-01-10'}</span></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Balance & Action buttons */}
+                      <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
+                        <div className="bg-white p-2.5 rounded-xl border border-neutral-200 shadow-2xs">
+                          <span className="text-[10px] text-neutral-400 block font-sans">Points Valeur</span>
+                          <span className="font-bold text-amber-700 text-sm">{formatPV(inspectedPartner.totalPv)}</span>
+                          <span className="text-[10px] text-neutral-400 block font-sans">
+                            {inspectedPartner.placedPv} placés / {inspectedPartner.remainingPv} rest.
+                          </span>
+                        </div>
+
+                        <div className="bg-white p-2.5 rounded-xl border border-neutral-200 shadow-2xs">
+                          <span className="text-[10px] text-neutral-400 block font-sans">Gains Directs</span>
+                          <span className="font-bold text-neutral-900 text-sm">{formatMoney(inspectedPartner.totalDirectEarnings)}</span>
+                          <span className="text-[10px] text-red-600 font-bold block font-sans">
+                            Reste : {formatMoney(inspectedPartner.remainingEarnings)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 font-sans">
+                          <button
+                            onClick={() => setSelectedPartnerForSheet(inspectedPartner)}
+                            className="px-3 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Imprimer Fiche</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenPayout(inspectedPartner)}
+                            disabled={inspectedPartner.remainingEarnings <= 0}
+                            className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                              inspectedPartner.remainingEarnings > 0
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                                : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                            }`}
+                          >
+                            <DollarSign className="w-3.5 h-3.5" />
+                            <span>Régler</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ================================================================= */}
+            {/* SOUS-VUE B: VUE LISTE DÉPLIANTE HIÉRARCHIQUE                       */}
+            {/* ================================================================= */}
+            {treeSubMode === 'hierarchy-list' && (
+              <div className="space-y-4">
+                {rootPartners.map(root => {
+                  const rootDownlines = getDirectDownlines(root.id);
+                  const card = root.cardStatus || (root.level === 'Diamant' ? 'VIP' : root.level === 'Or' ? 'Premium' : 'Start');
+                  const qual = root.qualificationStatus || (root.totalPv >= 100 ? 'Qualifié' : 'Non qualifié');
+
+                  return (
+                    <div key={root.id} className="border border-amber-300 rounded-2xl bg-amber-50/30 p-4 space-y-3">
+                      {/* Root Node Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-amber-200 shadow-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-xs">
+                            <Crown className="w-5 h-5 text-amber-100" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-neutral-900 text-sm">{root.firstName} {root.lastName}</span>
+                              <span className="font-mono text-xs font-bold text-red-600">({root.code})</span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-orange-100 text-orange-800 border border-orange-200">
+                                {card}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                qual === 'Qualifié' ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-500'
+                              }`}>
+                                {qual}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2">
+                              <span>Tête de réseau principal</span>
+                              <span>·</span>
+                              <span>Inscrit le : {root.registeredAt || '2025-11-04'}</span>
+                              <span>·</span>
+                              <span className="text-orange-700 font-bold">{rootDownlines.length} filleul(s) direct(s)</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-4 text-xs font-mono">
+                          <div>
+                            <span className="text-neutral-400 block text-[10px]">PV Totaux</span>
+                            <span className="font-bold text-amber-700 text-sm">{formatPV(root.totalPv)}</span>
+                          </div>
+                          <div>
+                            <span className="text-neutral-400 block text-[10px]">Gains Directs</span>
+                            <span className="font-bold text-neutral-900 text-sm">{formatMoney(root.totalDirectEarnings)}</span>
+                          </div>
+                          <button
+                            onClick={() => setSelectedPartnerForSheet(root)}
+                            className="px-2.5 py-1 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-800 font-bold text-xs flex items-center gap-1 transition-colors"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Fiche</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Downline Children (Level 1) */}
+                      <div className="pl-6 sm:pl-10 space-y-3 border-l-2 border-dashed border-amber-300 ml-4">
+                        {rootDownlines.length === 0 ? (
+                          <div className="text-xs text-neutral-400 italic py-2">
+                            Aucun filleul rattaché pour l'instant.
+                          </div>
+                        ) : (
+                          rootDownlines.map(child => {
+                            const childDownlines = getDirectDownlines(child.id);
+                            const childCard = child.cardStatus || 'Start';
+                            const childQual = child.qualificationStatus || 'Qualifié';
+
+                            return (
+                              <div key={child.id} className="space-y-2.5">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-neutral-200 shadow-2xs hover:border-orange-300 transition-colors">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-7 h-7 rounded-lg bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 text-xs font-mono">
+                                      1
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-bold text-neutral-900">{child.firstName} {child.lastName}</span>
+                                        <span className="font-mono text-xs text-neutral-500">({child.code})</span>
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-orange-100 text-orange-800">
+                                          {childCard}
+                                        </span>
+                                        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">
+                                          {childQual}
+                                        </span>
+                                      </div>
+                                      <div className="text-[10px] text-neutral-400 mt-0.5">
+                                        Parrain : {root.firstName} {root.lastName} · {childDownlines.length} filleul(s) direct(s)
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-3 text-xs font-mono">
+                                    <div>
+                                      <span className="text-neutral-400 block text-[9px]">PV</span>
+                                      <span className="font-bold text-amber-700">{formatPV(child.totalPv)}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-neutral-400 block text-[9px]">Gains</span>
+                                      <span className="font-bold text-neutral-900">{formatMoney(child.totalDirectEarnings)}</span>
+                                    </div>
+                                    <button
+                                      onClick={() => setSelectedPartnerForSheet(child)}
+                                      className="px-2 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-semibold flex items-center gap-1"
+                                    >
+                                      <FileText className="w-3 h-3" />
+                                      <span>Fiche</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Level 2 Children */}
+                                {childDownlines.length > 0 && (
+                                  <div className="pl-6 sm:pl-8 space-y-2 border-l-2 border-dashed border-orange-200 ml-3">
+                                    {childDownlines.map(grandChild => (
+                                      <div key={grandChild.id} className="flex items-center justify-between bg-neutral-50/70 p-2.5 rounded-lg border border-neutral-200 text-xs">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-neutral-400 font-mono text-[10px]">└── Niv 2:</span>
+                                          <span className="font-bold text-neutral-800">{grandChild.firstName} {grandChild.lastName}</span>
+                                          <span className="font-mono text-[10px] text-neutral-500">({grandChild.code})</span>
+                                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-neutral-200 text-neutral-700">
+                                            {grandChild.cardStatus || 'Start'}
+                                          </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-3 font-mono">
+                                          <span className="font-bold text-amber-700">{grandChild.totalPv} PV</span>
+                                          <span className="text-neutral-600">{formatMoney(grandChild.totalDirectEarnings)}</span>
+                                          <button
+                                            onClick={() => setSelectedPartnerForSheet(grandChild)}
+                                            className="p-1 text-neutral-400 hover:text-orange-600"
+                                            title="Voir fiche"
+                                          >
+                                            <FileText className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ===================================================================== */}
       {/* MODAL 1: ÉTAT ADMINISTRATEUR ET FINANCIER GLOBAL (FORMAT IMPRESSION)  */}
@@ -1221,20 +1585,113 @@ export const PartnersView: React.FC = () => {
             <div className="print-page space-y-4 text-xs text-neutral-900">
               <div className="flex items-start justify-between border-b-2 border-orange-600 pb-3">
                 <div>
-                  <span className="text-lg font-black text-neutral-900">
-                    {companySettings?.name || 'WHIEDA SMART'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-black text-neutral-900 font-serif italic text-orange-950">
+                      Système Réseau
+                    </span>
+                    <span className="text-xs font-bold text-neutral-400">·</span>
+                    <span className="text-sm font-black tracking-tight text-neutral-900">
+                      {companySettings?.name || 'WHIEDA SMART'}
+                    </span>
+                  </div>
                   <p className="text-[10px] text-neutral-500">
-                    Cartographie & Généalogie des Affiliations Réseau (Parrains & Filleuls)
+                    Modèle officiel d'Arborescence Binaire & Généalogie MLM (Parrains, Filleuls, Statuts Carte & PV)
                   </p>
                 </div>
                 <div className="text-right text-[10px] text-neutral-500 font-mono">
-                  Édité le {new Date().toLocaleDateString('fr-FR')} · {totalPartners} membres au total
+                  Édité le {new Date().toLocaleDateString('fr-FR')} · {partners.length} membres cartographiés
+                </div>
+              </div>
+
+              {/* Graphical Binary Tree Diagram (Matching Handwritten Photo Model) */}
+              <div className="p-4 bg-orange-50/20 border border-orange-300 rounded-xl">
+                <div className="flex justify-between items-center text-[10px] font-bold text-orange-900 uppercase tracking-wider mb-2 border-b border-orange-200 pb-1.5">
+                  <span>← Branche Gauche (Left Leg)</span>
+                  <span className="text-xs font-black font-serif italic">Schéma du Réseau Binaire</span>
+                  <span>Branche Droite (Right Leg) →</span>
+                </div>
+
+                <div className="overflow-x-auto py-2">
+                  <div className="relative mx-auto" style={{ width: '820px', height: '480px' }}>
+                    {/* SVG Connecting Lines for Print */}
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 820 480">
+                      {/* Root to Left & Right */}
+                      <line x1="410" y1="45" x2="205" y2="130" stroke="#ea580c" strokeWidth="2" />
+                      <line x1="410" y1="45" x2="615" y2="130" stroke="#ea580c" strokeWidth="2" />
+
+                      {/* Idris to Béatrice & Ibrahim */}
+                      <line x1="205" y1="130" x2="105" y2="225" stroke="#ea580c" strokeWidth="1.8" />
+                      <line x1="205" y1="130" x2="305" y2="225" stroke="#ea580c" strokeWidth="1.8" />
+
+                      {/* Sara to Jean-Marc & Chantal */}
+                      <line x1="615" y1="130" x2="515" y2="225" stroke="#ea580c" strokeWidth="1.8" />
+                      <line x1="615" y1="130" x2="715" y2="225" stroke="#ea580c" strokeWidth="1.8" />
+
+                      {/* Béatrice to Sophie & Mireille */}
+                      <line x1="105" y1="225" x2="55" y2="330" stroke="#ea580c" strokeWidth="1.5" />
+                      <line x1="105" y1="225" x2="155" y2="330" stroke="#ea580c" strokeWidth="1.5" />
+
+                      {/* Jean-Marc to Eric & Alain */}
+                      <line x1="515" y1="225" x2="465" y2="330" stroke="#ea580c" strokeWidth="1.5" />
+                      <line x1="515" y1="225" x2="565" y2="330" stroke="#ea580c" strokeWidth="1.5" />
+
+                      {/* Chantal to David */}
+                      <line x1="715" y1="225" x2="715" y2="330" stroke="#ea580c" strokeWidth="1.5" />
+
+                      {/* David to Carine */}
+                      <line x1="715" y1="330" x2="715" y2="420" stroke="#ea580c" strokeWidth="1.5" />
+                    </svg>
+
+                    {/* Nodes Helper Mapping for Print */}
+                    {[
+                      { id: 'ptn-1', name: 'OYONO UP', card: 'START', pv: 500, x: 410, y: 45, isRoot: true },
+                      { id: 'ptn-2', name: 'IDRIS AWOULE', card: 'START', pv: 250, x: 205, y: 130 },
+                      { id: 'ptn-3', name: 'SARA OYONO', card: 'START', pv: 500, x: 615, y: 130 },
+                      { id: 'ptn-4', name: 'BÉATRICE MANGA', card: 'START', pv: 150, x: 105, y: 225 },
+                      { id: 'ptn-5', name: 'IBRAHIM TRAORÉ', card: 'START', pv: 120, x: 305, y: 225 },
+                      { id: 'ptn-8', name: 'JEAN-MARC ETOA', card: 'START', pv: 200, x: 515, y: 225 },
+                      { id: 'ptn-9', name: 'CHANTAL BILONG', card: 'START', pv: 180, x: 715, y: 225 },
+                      { id: 'ptn-6', name: 'SOPHIE MBALLA', card: 'START', pv: 100, x: 55, y: 330 },
+                      { id: 'ptn-7', name: 'MIREILLE FOTSO', card: 'START', pv: 80, x: 155, y: 330 },
+                      { id: 'ptn-10', name: 'ERIC KOUAM', card: 'START', pv: 140, x: 465, y: 330 },
+                      { id: 'ptn-11', name: 'ALAIN NGUEMO', card: 'START', pv: 90, x: 565, y: 330 },
+                      { id: 'ptn-12', name: 'DAVID KENMOGNE', card: 'START', pv: 110, x: 715, y: 330 },
+                      { id: 'ptn-13', name: 'CARINE ATANGANA', card: 'START', pv: 60, x: 715, y: 420 },
+                    ].map(n => {
+                      const p = partners.find(item => item.id === n.id);
+                      const finalName = p ? `${p.firstName} ${p.lastName}`.toUpperCase() : n.name;
+                      const finalCard = p?.cardStatus || n.card;
+                      const finalPv = p?.totalPv || n.pv;
+
+                      return (
+                        <div
+                          key={`print-node-${n.id}`}
+                          className="absolute text-center -translate-x-1/2 -translate-y-1/2"
+                          style={{ left: `${n.x}px`, top: `${n.y}px` }}
+                        >
+                          <div className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center font-bold text-[10px] ${
+                            n.isRoot
+                              ? 'bg-amber-100 text-amber-900 border-2 border-amber-500'
+                              : 'bg-white text-orange-700 border-2 border-orange-400'
+                          }`}>
+                            {n.isRoot ? '👑' : finalName.slice(0, 2)}
+                          </div>
+                          <div className="bg-white/95 px-1.5 py-0.5 rounded shadow-2xs border border-neutral-300 mt-1 whitespace-nowrap">
+                            <span className="font-extrabold text-[9px] text-neutral-900 block leading-tight">{finalName}</span>
+                            <span className="text-[8px] text-orange-700 font-bold font-mono">[{finalCard}] {finalPv} PV</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
               {/* Structured Hierarchical List for Print */}
               <div className="space-y-3 font-mono text-xs">
+                <div className="text-xs font-bold text-neutral-900 uppercase tracking-wide">
+                  Répertoire Détaillé des Filiations & Points Valeurs (PV)
+                </div>
                 {rootPartners.map(root => {
                   const downlines1 = getDirectDownlines(root.id);
                   const card = root.cardStatus || 'VIP';

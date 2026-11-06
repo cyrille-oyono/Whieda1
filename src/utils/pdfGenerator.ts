@@ -591,44 +591,228 @@ export const generateNetworkTreePDF = (partners: Partner[], companySettings?: Co
 
   const pageWidth = doc.internal.pageSize.getWidth(); // 210mm
   const pageHeight = doc.internal.pageSize.getHeight(); // 297mm
-  const margin = 14;
-  let currentY = 14;
+  const margin = 12;
+  let currentY = 12;
 
   // Header Bar
   doc.setFillColor(234, 88, 12); // Orange-600
   doc.rect(margin, currentY, pageWidth - (margin * 2), 2.5, 'F');
-  currentY += 7;
+  currentY += 6;
 
   // Header Titles
   const compName = companySettings?.name || 'WHIEDA SMART';
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
+  doc.setFontSize(15);
   doc.setTextColor(220, 38, 38);
   doc.text(compName, margin, currentY);
 
   doc.setFontSize(13);
   doc.setTextColor(15, 23, 42);
-  doc.text('ARBRE DU RÉSEAU MLM (GÉNÉALOGIE)', pageWidth - margin, currentY, { align: 'right' });
+  doc.text('SYSTÈME RÉSEAU - ARBRE BINAIRE', pageWidth - margin, currentY, { align: 'right' });
   currentY += 5;
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text('Hiérarchie des parrains, filleuls, statuts de carte et Points de Valeur (PV)', margin, currentY);
+  doc.text('Modèle Graphique d\'Arborescence Binaire (Têtes, Parrains, Filleuls, Statuts Carte & PV)', margin, currentY);
   const nowStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
   doc.text(`Édition du : ${nowStr}`, pageWidth - margin, currentY, { align: 'right' });
-  currentY += 8;
+  currentY += 7;
 
   // Divider
   doc.setDrawColor(226, 232, 240);
   doc.line(margin, currentY, pageWidth - margin, currentY);
-  currentY += 6;
+  currentY += 5;
 
-  // Helper to build tree nodes recursively
+  // =========================================================================
+  // SCHÉMA GRAPHIQUE DU SYSTÈME RÉSEAU (MODÈLE EXACT DE LA PHOTO)
+  // =========================================================================
+  // Background card for graphical diagram
+  const graphBoxH = 128;
+  doc.setFillColor(254, 252, 249);
+  doc.roundedRect(margin, currentY, pageWidth - (margin * 2), graphBoxH, 3, 3, 'F');
+  doc.setDrawColor(251, 146, 60);
+  doc.roundedRect(margin, currentY, pageWidth - (margin * 2), graphBoxH, 3, 3, 'S');
+
+  // Title in diagram matching user's handwriting "Système Réseau"
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(194, 65, 12);
+  doc.text('Système Réseau (Arborescence Binaire)', margin + 6, currentY + 7);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Reproduction vectorielle du modèle manuscrit : Cercles Partenaires, Badges Statut Carte & PV', margin + 6, currentY + 11);
+
+  // Helper to draw a circle node in PDF with annotations
+  const drawCircleNode = (x: number, y: number, name: string, card: string, pv: number, isRoot: boolean = false) => {
+    const r = isRoot ? 6.5 : 5.5;
+
+    // Fill circle
+    if (isRoot) {
+      doc.setFillColor(254, 243, 199); // Amber-100
+      doc.setDrawColor(217, 119, 6); // Amber-600
+    } else {
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(234, 88, 12); // Orange-600
+    }
+    doc.setLineWidth(0.6);
+    doc.circle(x, y, r, 'FD');
+
+    // Initials in circle
+    const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(isRoot ? 7 : 6);
+    doc.setTextColor(isRoot ? 180 : 234, isRoot ? 83 : 88, isRoot ? 9 : 12);
+    doc.text(initials, x, y + (isRoot ? 2.2 : 1.8), { align: 'center' });
+
+    // Annotation text beside or below node
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(15, 23, 42);
+    doc.text(name, x, y + r + 3.5, { align: 'center' });
+
+    // Card status + PV badge
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(194, 65, 12);
+    doc.text(`[${card.toUpperCase()}] ${pv} PV`, x, y + r + 6.8, { align: 'center' });
+  };
+
+  // Coordinates matching the user's sketch:
+  // Root: Oyono Up
+  const rootX = 105;
+  const rootY = currentY + 22;
+
+  // Level 1: Idris Awoule (Left), Sara Oyono (Right)
+  const idrisX = 58;
+  const idrisY = currentY + 46;
+  const saraX = 152;
+  const saraY = currentY + 46;
+
+  // Level 2: Under Idris (Béatrice Left, Ibrahim Right)
+  const beatriceX = 36;
+  const beatriceY = currentY + 75;
+  const ibrahimX = 78;
+  const ibrahimY = currentY + 75;
+
+  // Level 2: Under Sara (Jean-Marc Left, Chantal Right)
+  const jmX = 130;
+  const jmY = currentY + 75;
+  const chantalX = 172;
+  const chantalY = currentY + 75;
+
+  // Level 3: Under Béatrice (Sophie, Mireille)
+  const sophieX = 25;
+  const sophieY = currentY + 104;
+  const mireilleX = 46;
+  const mireilleY = currentY + 104;
+
+  // Level 3: Under Jean-Marc (Eric, Alain)
+  const ericX = 119;
+  const ericY = currentY + 104;
+  const alainX = 141;
+  const alainY = currentY + 104;
+
+  // Level 3: Under Chantal (David)
+  const davidX = 172;
+  const davidY = currentY + 104;
+
+  // Level 4: Under David (Carine)
+  const carineX = 172;
+  const carineY = currentY + 120;
+
+  // Draw connecting lines with proper vector stroke
+  doc.setDrawColor(251, 146, 60);
+  doc.setLineWidth(0.5);
+
+  // Root to Level 1
+  doc.line(rootX, rootY, idrisX, idrisY);
+  doc.line(rootX, rootY, saraX, saraY);
+
+  // Idris to Level 2
+  doc.line(idrisX, idrisY, beatriceX, beatriceY);
+  doc.line(idrisX, idrisY, ibrahimX, ibrahimY);
+
+  // Sara to Level 2
+  doc.line(saraX, saraY, jmX, jmY);
+  doc.line(saraX, saraY, chantalX, chantalY);
+
+  // Béatrice to Level 3
+  doc.line(beatriceX, beatriceY, sophieX, sophieY);
+  doc.line(beatriceX, beatriceY, mireilleX, mireilleY);
+
+  // Jean-Marc to Level 3
+  doc.line(jmX, jmY, ericX, ericY);
+  doc.line(jmX, jmY, alainX, alainY);
+
+  // Chantal to Level 3
+  doc.line(chantalX, chantalY, davidX, davidY);
+
+  // David to Level 4
+  doc.line(davidX, davidY, carineX, carineY);
+
+  // Branch Labels
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(234, 88, 12);
+  doc.text('← BRANCHE GAUCHE', idrisX - 10, currentY + 34);
+  doc.text('BRANCHE DROITE →', saraX - 10, currentY + 34);
+
+  // Draw the circles with names and values from partner list or drawing
+  const pRoot = partners.find(p => p.id === 'ptn-1') || partners[0];
+  const pIdris = partners.find(p => p.id === 'ptn-2');
+  const pSara = partners.find(p => p.id === 'ptn-3');
+  const pBeatrice = partners.find(p => p.id === 'ptn-4');
+  const pIbrahim = partners.find(p => p.id === 'ptn-5');
+  const pSophie = partners.find(p => p.id === 'ptn-6');
+  const pMireille = partners.find(p => p.id === 'ptn-7');
+  const pJm = partners.find(p => p.id === 'ptn-8');
+  const pChantal = partners.find(p => p.id === 'ptn-9');
+  const pEric = partners.find(p => p.id === 'ptn-10');
+  const pAlain = partners.find(p => p.id === 'ptn-11');
+  const pDavid = partners.find(p => p.id === 'ptn-12');
+  const pCarine = partners.find(p => p.id === 'ptn-13');
+
+  // Draw each node (Root)
+  drawCircleNode(rootX, rootY, `${pRoot?.firstName || 'OYONO'} ${pRoot?.lastName || 'UP'}`.toUpperCase(), pRoot?.cardStatus || 'START', pRoot?.totalPv || 500, true);
+
+  // Level 1
+  drawCircleNode(idrisX, idrisY, `${pIdris?.firstName || 'IDRIS'} ${pIdris?.lastName || 'AWOULE'}`.toUpperCase(), pIdris?.cardStatus || 'START', pIdris?.totalPv || 250);
+  drawCircleNode(saraX, saraY, `${pSara?.firstName || 'SARA'} ${pSara?.lastName || 'OYONO'}`.toUpperCase(), pSara?.cardStatus || 'START', pSara?.totalPv || 500);
+
+  // Level 2
+  drawCircleNode(beatriceX, beatriceY, `${pBeatrice?.firstName || 'BÉATRICE'} ${pBeatrice?.lastName || 'MANGA'}`.toUpperCase(), pBeatrice?.cardStatus || 'START', pBeatrice?.totalPv || 150);
+  drawCircleNode(ibrahimX, ibrahimY, `${pIbrahim?.firstName || 'IBRAHIM'} ${pIbrahim?.lastName || 'TRAORÉ'}`.toUpperCase(), pIbrahim?.cardStatus || 'START', pIbrahim?.totalPv || 120);
+  drawCircleNode(jmX, jmY, `${pJm?.firstName || 'JEAN-MARC'} ${pJm?.lastName || 'ETOA'}`.toUpperCase(), pJm?.cardStatus || 'START', pJm?.totalPv || 200);
+  drawCircleNode(chantalX, chantalY, `${pChantal?.firstName || 'CHANTAL'} ${pChantal?.lastName || 'BILONG'}`.toUpperCase(), pChantal?.cardStatus || 'START', pChantal?.totalPv || 180);
+
+  // Level 3
+  drawCircleNode(sophieX, sophieY, `${pSophie?.firstName || 'SOPHIE'} ${pSophie?.lastName || 'MBALLA'}`.toUpperCase(), pSophie?.cardStatus || 'START', pSophie?.totalPv || 100);
+  drawCircleNode(mireilleX, mireilleY, `${pMireille?.firstName || 'MIREILLE'} ${pMireille?.lastName || 'FOTSO'}`.toUpperCase(), pMireille?.cardStatus || 'START', pMireille?.totalPv || 80);
+  drawCircleNode(ericX, ericY, `${pEric?.firstName || 'ERIC'} ${pEric?.lastName || 'KOUAM'}`.toUpperCase(), pEric?.cardStatus || 'START', pEric?.totalPv || 140);
+  drawCircleNode(alainX, alainY, `${pAlain?.firstName || 'ALAIN'} ${pAlain?.lastName || 'NGUEMO'}`.toUpperCase(), pAlain?.cardStatus || 'START', pAlain?.totalPv || 90);
+  drawCircleNode(davidX, davidY, `${pDavid?.firstName || 'DAVID'} ${pDavid?.lastName || 'KENMOGNE'}`.toUpperCase(), pDavid?.cardStatus || 'START', pDavid?.totalPv || 110);
+
+  // Level 4
+  drawCircleNode(carineX, carineY, `${pCarine?.firstName || 'CARINE'} ${pCarine?.lastName || 'ATANGANA'}`.toUpperCase(), pCarine?.cardStatus || 'START', pCarine?.totalPv || 60);
+
+  currentY += graphBoxH + 6;
+
+  // =========================================================================
+  // LISTE HIÉRARCHIQUE & RÉCAPITULATIF DES POINTS DE VALEUR
+  // =========================================================================
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text('RÉCAPITULATIF DÉTAILLÉ DE L\'ARBORESCENCE & DES PV :', margin, currentY);
+  currentY += 4.5;
+
   const roots = partners.filter(p => !p.sponsorId || !partners.some(parent => parent.id === p.sponsorId));
 
   const renderNode = (p: Partner, depth: number) => {
-    if (currentY > pageHeight - 20) {
+    if (currentY > pageHeight - 16) {
       doc.addPage();
       currentY = 15;
     }
@@ -637,12 +821,11 @@ export const generateNetworkTreePDF = (partners: Partner[], companySettings?: Co
     const qual = p.qualificationStatus || (p.totalPv >= 100 ? 'Qualifié' : 'Non qualifié');
     const directDownlines = partners.filter(child => child.sponsorId === p.id);
 
-    const indentX = margin + (depth * 9);
+    const indentX = margin + (depth * 7);
     const rowWidth = pageWidth - margin - indentX;
 
-    // Background box for each node
     if (depth === 0) {
-      doc.setFillColor(254, 243, 199); // Amber-100 for Root
+      doc.setFillColor(254, 243, 199);
       doc.setDrawColor(245, 158, 11);
     } else if (depth === 1) {
       doc.setFillColor(248, 250, 252);
@@ -652,46 +835,39 @@ export const generateNetworkTreePDF = (partners: Partner[], companySettings?: Co
       doc.setDrawColor(226, 232, 240);
     }
 
-    doc.roundedRect(indentX, currentY, rowWidth, 9, 1.5, 1.5, 'FD');
+    doc.roundedRect(indentX, currentY, rowWidth, 6.8, 1, 1, 'FD');
 
-    // Hierarchy prefix indicator
     doc.setFont('courier', 'bold');
-    doc.setFontSize(8);
+    doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
     const prefix = depth === 0 ? '👑 [TÊTE]' : depth === 1 ? '├── [Niv 1]' : '    └── [Niv 2]';
-    doc.text(prefix, indentX + 2, currentY + 6);
+    doc.text(prefix, indentX + 1.5, currentY + 4.5);
 
-    // Partner ID & Name
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.5);
-    doc.setTextColor(15, 23, 42);
-    const nameStr = `${p.code} - ${p.firstName} ${p.lastName}`;
-    doc.text(nameStr, indentX + 24, currentY + 6);
-
-    // Card Badge
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
-    doc.setTextColor(card === 'VIP' ? 126 : card === 'Premium' ? 194 : 30, card === 'VIP' ? 34 : card === 'Premium' ? 65 : 41, card === 'VIP' ? 206 : card === 'Premium' ? 12 : 59);
-    doc.text(`Carte : ${card}`, indentX + 75, currentY + 6);
+    doc.setTextColor(15, 23, 42);
+    const nameStr = `${p.code} - ${p.firstName} ${p.lastName}`;
+    doc.text(nameStr, indentX + 22, currentY + 4.5);
 
-    // Qualification
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(194, 65, 12);
+    doc.text(`Carte : ${card}`, indentX + 72, currentY + 4.5);
+
     doc.setTextColor(qual === 'Qualifié' ? 4 : 180, qual === 'Qualifié' ? 120 : 60, qual === 'Qualifié' ? 87 : 60);
-    doc.text(`[${qual}]`, indentX + 104, currentY + 6);
+    doc.text(`[${qual}]`, indentX + 96, currentY + 4.5);
 
-    // PV Recap
     doc.setFont('courier', 'bold');
     doc.setTextColor(180, 83, 9);
-    doc.text(`${p.totalPv} PV (Placés: ${p.placedPv} / Rest: ${p.remainingPv})`, pageWidth - margin - 3, currentY + 6, { align: 'right' });
+    doc.text(`${p.totalPv} PV (Placés: ${p.placedPv} / Rest: ${p.remainingPv})`, pageWidth - margin - 2, currentY + 4.5, { align: 'right' });
 
-    currentY += 10.5;
+    currentY += 8;
 
-    // Recursively render children
     directDownlines.forEach(child => {
       renderNode(child, depth + 1);
     });
   };
 
-  // Render all roots
   roots.forEach(root => {
     renderNode(root, 0);
   });
