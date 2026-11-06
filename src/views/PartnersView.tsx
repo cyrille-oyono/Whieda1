@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Partner } from '../types';
+import { Partner, PartnerCardStatus, PartnerQualification } from '../types';
 import { formatMoney, formatPV } from '../utils/formatters';
 import { 
   Users, 
@@ -15,16 +15,43 @@ import {
   TrendingUp,
   X,
   CreditCard,
-  Layers
+  Layers,
+  Printer,
+  FileDown,
+  GitFork,
+  FileText,
+  ShieldCheck,
+  ChevronRight,
+  ChevronDown,
+  Crown,
+  Sparkles,
+  Check
 } from 'lucide-react';
+import { 
+  generateGlobalAdminReportPDF, 
+  generateNetworkTreePDF, 
+  generatePartnerSheetPDF 
+} from '../utils/pdfGenerator';
 
 export const PartnersView: React.FC = () => {
-  const { partners, addPartner, settlePartnerPayout, placePartnerPv } = useApp();
+  const { partners, addPartner, settlePartnerPayout, placePartnerPv, companySettings } = useApp();
 
+  // Sub-tabs: 'table' (Tableau 10 colonnes) or 'tree' (Arbre généalogique)
+  const [activeTab, setActiveTab] = useState<'table' | 'tree'>('table');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedPartnerForPayout, setSelectedPartnerForPayout] = useState<Partner | null>(null);
   const [selectedPartnerForPlacement, setSelectedPartnerForPlacement] = useState<Partner | null>(null);
+  
+  // Print & PDF Modals
+  const [isGlobalReportModalOpen, setIsGlobalReportModalOpen] = useState(false);
+  const [selectedPartnerForSheet, setSelectedPartnerForSheet] = useState<Partner | null>(null);
+  const [isTreePrintModalOpen, setIsTreePrintModalOpen] = useState(false);
+
+  // Success Feedback Toast
+  const [pdfNotification, setPdfNotification] = useState<string | null>(null);
 
   // Add Partner Form State
   const [firstName, setFirstName] = useState('');
@@ -34,6 +61,8 @@ export const PartnersView: React.FC = () => {
   const [email, setEmail] = useState('');
   const [sponsorId, setSponsorId] = useState('');
   const [level, setLevel] = useState('Bronze');
+  const [cardStatus, setCardStatus] = useState<PartnerCardStatus>('Start');
+  const [qualificationStatus, setQualificationStatus] = useState<PartnerQualification>('Qualifié');
 
   // Payout Modal State
   const [payoutAmount, setPayoutAmount] = useState<number>(0);
@@ -43,11 +72,24 @@ export const PartnersView: React.FC = () => {
   // PV Placement Modal State
   const [pvToPlace, setPvToPlace] = useState<number>(0);
 
-  // Financial Totals
+  // Financial & Administrative Totals
+  const totalPartners = partners.length;
   const totalGainsGenerated = partners.reduce((acc, p) => acc + p.totalDirectEarnings, 0);
   const totalPaid = partners.reduce((acc, p) => acc + p.paidEarnings, 0);
   const totalRemaining = partners.reduce((acc, p) => acc + p.remainingEarnings, 0);
   const totalPvNetwork = partners.reduce((acc, p) => acc + p.totalPv, 0);
+  const totalPvPlaced = partners.reduce((acc, p) => acc + p.placedPv, 0);
+  const totalPvRemaining = partners.reduce((acc, p) => acc + p.remainingPv, 0);
+
+  // Card breakdown
+  const countStart = partners.filter(p => (p.cardStatus || 'Start') === 'Start').length;
+  const countStandard = partners.filter(p => (p.cardStatus || '') === 'Standard' || p.level === 'Argent').length;
+  const countPremium = partners.filter(p => (p.cardStatus || '') === 'Premium' || p.level === 'Or').length;
+  const countVIP = partners.filter(p => (p.cardStatus || '') === 'VIP' || p.level === 'Diamant').length;
+
+  // Qualification breakdown
+  const countQualified = partners.filter(p => (p.qualificationStatus || 'Qualifié') === 'Qualifié').length;
+  const countNonQualified = totalPartners - countQualified;
 
   const handleOpenAdd = () => {
     setFirstName('');
@@ -57,6 +99,8 @@ export const PartnersView: React.FC = () => {
     setEmail('');
     setSponsorId('');
     setLevel('Bronze');
+    setCardStatus('Start');
+    setQualificationStatus('Qualifié');
     setIsAddModalOpen(true);
   };
 
@@ -73,6 +117,8 @@ export const PartnersView: React.FC = () => {
       sponsorName: sponsor ? `${sponsor.firstName} ${sponsor.lastName}` : undefined,
       sponsorCode: sponsor?.code,
       level,
+      cardStatus,
+      qualificationStatus,
     });
     setIsAddModalOpen(false);
   };
@@ -105,234 +151,1153 @@ export const PartnersView: React.FC = () => {
     }
   };
 
+  // Direct PDF Download Handlers
+  const handleDownloadGlobalReportPDF = () => {
+    generateGlobalAdminReportPDF(partners, companySettings);
+    setPdfNotification('État Global Administrateur & Financier téléchargé avec succès !');
+    setTimeout(() => setPdfNotification(null), 4000);
+  };
+
+  const handleDownloadNetworkTreePDF = () => {
+    generateNetworkTreePDF(partners, companySettings);
+    setPdfNotification('Arborescence complète du réseau téléchargée en PDF !');
+    setTimeout(() => setPdfNotification(null), 4000);
+  };
+
+  const handleDownloadPartnerSheetPDF = (p: Partner) => {
+    const downlines = partners.filter(child => child.sponsorId === p.id);
+    generatePartnerSheetPDF(p, downlines, companySettings);
+    setPdfNotification(`Fiche individuelle de ${p.firstName} ${p.lastName} (${p.code}) téléchargée en PDF !`);
+    setTimeout(() => setPdfNotification(null), 4000);
+  };
+
   const filteredPartners = partners.filter(p => {
-    const full = `${p.firstName} ${p.lastName} ${p.code}`.toLowerCase();
+    const full = `${p.firstName} ${p.lastName} ${p.code} ${p.cardStatus || ''} ${p.level}`.toLowerCase();
     return full.includes(searchTerm.toLowerCase());
   });
 
+  // Helper: Get downlines of a partner
+  const getDirectDownlines = (partnerId: string) => {
+    return partners.filter(p => p.sponsorId === partnerId);
+  };
+
+  // Helper: Roots for tree view
+  const rootPartners = partners.filter(p => !p.sponsorId || !partners.some(parent => parent.id === p.sponsorId));
+
   return (
     <div className="space-y-6">
+      {/* Toast Notification */}
+      {pdfNotification && (
+        <div className="fixed top-20 right-6 z-50 max-w-md bg-neutral-900 text-white p-4 rounded-xl shadow-2xl border border-orange-500/50 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 no-print">
+          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          <div className="text-xs">
+            <span className="font-semibold block text-emerald-300">Impression & Export PDF</span>
+            <p className="mt-0.5 text-neutral-200">{pdfNotification}</p>
+          </div>
+          <button onClick={() => setPdfNotification(null)} className="ml-auto text-neutral-400 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
             Gestion des Partenaires & Système MLM / PV
           </h1>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Suivi des gains directs accumulés par les recommandations de patients et gestion des Points de Valeur
+            Suivi des gains directs, gestion des Points de Valeur et états administratifs/financiers imprimables
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all whitespace-nowrap"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Nouveau Partenaire MLM</span>
-        </button>
+        {/* Global Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Button: Imprimer l'État Global (Admin & Financier) */}
+          <button
+            onClick={() => setIsGlobalReportModalOpen(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg text-xs font-bold shadow-xs transition-all whitespace-nowrap"
+            title="Générer et imprimer le rapport administratif et financier consolidé"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Imprimer l'État Global (Admin & Financier)</span>
+          </button>
+
+          {/* Button: Imprimer l'Arbre du Réseau */}
+          <button
+            onClick={() => setIsTreePrintModalOpen(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-neutral-900 hover:bg-black text-white rounded-lg text-xs font-bold shadow-xs transition-all whitespace-nowrap"
+            title="Imprimer l'arbre généalogique complet du réseau"
+          >
+            <GitFork className="w-4 h-4 text-orange-400" />
+            <span>Imprimer l'Arbre du Réseau</span>
+          </button>
+
+          {/* Button: Nouveau Partenaire */}
+          <button
+            onClick={handleOpenAdd}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 rounded-lg text-xs font-semibold shadow-xs transition-all whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4 text-orange-600" />
+            <span>Nouveau Partenaire</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-xs">
+        <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs">
           <div className="flex items-center justify-between text-neutral-500 mb-2">
             <span className="text-xs font-semibold">Total Gains Directs Réseau</span>
             <DollarSign className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-bold text-neutral-900 tabular-nums">
+          <div className="text-2xl font-bold text-neutral-900 tabular-nums font-mono">
             {formatMoney(totalGainsGenerated)}
           </div>
           <div className="mt-2 text-xs text-neutral-500 flex items-center gap-1.5">
-            <span className="text-emerald-700 font-semibold">{formatMoney(totalPaid)}</span>
-            <span>déjà réglé</span>
+            <span className="text-emerald-700 font-semibold font-mono">{formatMoney(totalPaid)}</span>
+            <span>déjà réglé aux parrains</span>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-xs">
+        <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs">
           <div className="flex items-center justify-between text-neutral-500 mb-2">
             <span className="text-xs font-semibold">Commissions Reste à Payer</span>
             <Clock className="w-4 h-4 text-orange-600" />
           </div>
-          <div className="text-2xl font-bold text-orange-600 tabular-nums">
+          <div className="text-2xl font-bold text-orange-600 tabular-nums font-mono">
             {formatMoney(totalRemaining)}
           </div>
           <div className="mt-2 text-xs text-neutral-500">
-            <span>En attente de versement aux parrains</span>
+            <span>En attente de versement au réseau</span>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-xs">
+        <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs">
           <div className="flex items-center justify-between text-neutral-500 mb-2">
-            <span className="text-xs font-semibold">Total PV Accumulés</span>
+            <span className="text-xs font-semibold">Total Points Valeur (PV)</span>
             <Award className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-2xl font-bold text-neutral-900 tabular-nums">
+          <div className="text-2xl font-bold text-neutral-900 tabular-nums font-mono">
             {formatPV(totalPvNetwork)}
           </div>
-          <div className="mt-2 text-xs text-neutral-500">
-            <span>Points de qualification et bonus de volume</span>
+          <div className="mt-2 text-xs text-neutral-500 flex items-center gap-1.5 font-mono">
+            <span className="text-emerald-700 font-bold">{totalPvPlaced} placés</span>
+            <span>/</span>
+            <span className="text-amber-600 font-bold">{totalPvRemaining} restants</span>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-neutral-200 shadow-xs">
+        <div className="bg-white p-5 rounded-2xl border border-neutral-200 shadow-xs">
           <div className="flex items-center justify-between text-neutral-500 mb-2">
-            <span className="text-xs font-semibold">Membres Actifs du Réseau</span>
+            <span className="text-xs font-semibold">Membres Réseau ({totalPartners})</span>
             <Users className="w-4 h-4 text-red-600" />
           </div>
           <div className="text-2xl font-bold text-neutral-900 tabular-nums">
-            {partners.length}
+            {countQualified} <span className="text-xs text-emerald-600 font-normal">Qualifiés</span>
           </div>
-          <div className="mt-2 text-xs text-neutral-500">
-            <span>Arbre binaire et affiliation active</span>
+          <div className="mt-2 text-xs text-neutral-500 flex items-center gap-1.5">
+            <span>Cartes : Start ({countStart}) · VIP ({countVIP})</span>
           </div>
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-xs flex items-center justify-between gap-3">
-        <div className="relative flex-1">
+      {/* Tabs & Search Strip */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-neutral-200 shadow-xs">
+        {/* Sub-tabs */}
+        <div className="flex items-center p-1 bg-neutral-100 rounded-xl">
+          <button
+            onClick={() => setActiveTab('table')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'table'
+                ? 'bg-white text-orange-600 shadow-xs'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Tableau Récapitulatif (10 Colonnes)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('tree')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'tree'
+                ? 'bg-white text-orange-600 shadow-xs'
+                : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <GitFork className="w-3.5 h-3.5" />
+            <span>Arborescence du Réseau (Arbre MLM)</span>
+          </button>
+        </div>
+
+        {/* Search Input */}
+        <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Rechercher un partenaire par nom ou code (ex: WH-PTN-101)..."
+            placeholder="Rechercher par nom, code (WH-PTN-...), statut ou grade..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="w-full pl-9 pr-3 py-1.5 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
         </div>
       </div>
 
-      {/* Main Partners Table */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-neutral-50 text-neutral-500 font-semibold border-b border-neutral-200">
-              <tr>
-                <th className="py-3 px-4">Code / ID</th>
-                <th className="py-3 px-4">Partenaire</th>
-                <th className="py-3 px-4">Parrain Up</th>
-                <th className="py-3 px-4 text-right">Gains Directs Totaux</th>
-                <th className="py-3 px-4 text-right">Déjà Soldé</th>
-                <th className="py-3 px-4 text-right">Reste à Payer</th>
-                <th className="py-3 px-4 text-right">PV Totaux</th>
-                <th className="py-3 px-4 text-right">PV Placés / Restants</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100 text-neutral-700">
-              {filteredPartners.length === 0 ? (
+      {/* ===================================================================== */}
+      {/* VUE 1: TABLEAU RÉCAPITULATIF COMPLET EN 10 COLONNES EXIGÉES           */}
+      {/* ===================================================================== */}
+      {activeTab === 'table' && (
+        <div className="bg-white rounded-2xl border border-neutral-200 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-neutral-50 text-neutral-600 uppercase text-[10px] font-bold border-b border-neutral-200 tracking-wider">
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-neutral-400">
-                    Aucun partenaire trouvé.
-                  </td>
+                  <th className="py-3 px-3">1. Date Entrée</th>
+                  <th className="py-3 px-3">2. Nom et ID</th>
+                  <th className="py-3 px-3">3. Parrain Up</th>
+                  <th className="py-3 px-3">4. Statut Carte</th>
+                  <th className="py-3 px-3 text-center">5. Qualif.</th>
+                  <th className="py-3 px-3 text-right">6. PV Total</th>
+                  <th className="py-3 px-3 text-right">7. PV Placés</th>
+                  <th className="py-3 px-3 text-right">8. PV Restants</th>
+                  <th className="py-3 px-3 text-right">9. Gains Accumulés</th>
+                  <th className="py-3 px-3 text-right">10. Gains Payés</th>
+                  <th className="py-3 px-3 text-right">11. Reste à Payer</th>
+                  <th className="py-3 px-3 text-center">Actions & Fiche</th>
                 </tr>
-              ) : (
-                filteredPartners.map(p => {
-                  const isSettled = p.remainingEarnings === 0;
+              </thead>
+              <tbody className="divide-y divide-neutral-100 text-neutral-700">
+                {filteredPartners.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="py-12 text-center text-neutral-400">
+                      Aucun partenaire trouvé pour cette recherche.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredPartners.map(p => {
+                    const isSettled = p.remainingEarnings === 0;
+                    const card = p.cardStatus || (p.level === 'Diamant' ? 'VIP' : p.level === 'Or' ? 'Premium' : p.level === 'Argent' ? 'Standard' : 'Start');
+                    const qual = p.qualificationStatus || (p.totalPv >= 100 ? 'Qualifié' : 'Non qualifié');
 
-                  return (
-                    <tr key={p.id} className="hover:bg-neutral-50/60 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-neutral-900 whitespace-nowrap">
-                        {p.code}
-                      </td>
+                    return (
+                      <tr key={p.id} className="hover:bg-neutral-50/70 transition-colors">
+                        {/* 1. Date Entrée */}
+                        <td className="py-3 px-3 font-mono text-[11px] text-neutral-500 whitespace-nowrap">
+                          {p.registeredAt || '2026-01-10'}
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-neutral-900">
-                          {p.firstName} {p.lastName}
-                        </div>
-                        <div className="text-[11px] text-neutral-500 flex items-center gap-1.5">
-                          <span>{p.phone}</span>
-                          <span className="text-neutral-300">·</span>
-                          <span className="text-neutral-400 font-medium">{p.level}</span>
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-4">
-                        {p.sponsorName ? (
-                          <div>
-                            <div className="font-medium text-neutral-800">{p.sponsorName}</div>
-                            <span className="text-[10px] text-neutral-400 font-mono">{p.sponsorCode}</span>
+                        {/* 2. Nom et ID */}
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-neutral-900">
+                            {p.firstName} {p.lastName}
                           </div>
-                        ) : (
-                          <span className="text-neutral-400 italic">Tête de réseau</span>
-                        )}
-                      </td>
+                          <span className="font-mono text-[10px] text-red-600 font-bold block">
+                            {p.code}
+                          </span>
+                        </td>
 
-                      <td className="py-3 px-4 text-right font-mono font-semibold text-neutral-900 tabular-nums">
-                        {formatMoney(p.totalDirectEarnings)}
-                      </td>
+                        {/* 3. Parrain Up */}
+                        <td className="py-3 px-3">
+                          {p.sponsorName ? (
+                            <div>
+                              <div className="font-medium text-neutral-800">{p.sponsorName}</div>
+                              <span className="text-[10px] text-neutral-400 font-mono">{p.sponsorCode}</span>
+                            </div>
+                          ) : (
+                            <span className="text-neutral-400 italic text-[11px]">Tête de réseau</span>
+                          )}
+                        </td>
 
-                      <td className="py-3 px-4 text-right font-mono text-emerald-700 tabular-nums">
-                        {formatMoney(p.paidEarnings)}
-                      </td>
-
-                      {/* Reste à payer / État */}
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex flex-col items-end">
-                          <span className={`font-mono font-bold tabular-nums ${
-                            isSettled ? 'text-neutral-400' : 'text-orange-600'
+                        {/* 4. Statut Carte */}
+                        <td className="py-3 px-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            card === 'VIP' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                            card === 'Premium' ? 'bg-orange-100 text-orange-800 border border-orange-200' :
+                            card === 'Standard' ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                            'bg-neutral-100 text-neutral-700 border border-neutral-200'
                           }`}>
+                            {card}
+                          </span>
+                          <span className="text-[10px] text-neutral-400 block mt-0.5">Grade: {p.level}</span>
+                        </td>
+
+                        {/* 5. Statut Qualification */}
+                        <td className="py-3 px-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            qual === 'Qualifié' 
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                              : 'bg-neutral-100 text-neutral-500'
+                          }`}>
+                            {qual}
+                          </span>
+                        </td>
+
+                        {/* 6. PV Total */}
+                        <td className="py-3 px-3 text-right font-mono font-bold text-amber-700 tabular-nums">
+                          {formatPV(p.totalPv)}
+                        </td>
+
+                        {/* 7. PV Placés */}
+                        <td className="py-3 px-3 text-right font-mono text-neutral-600 tabular-nums">
+                          {p.placedPv} PV
+                        </td>
+
+                        {/* 8. PV Restants */}
+                        <td className="py-3 px-3 text-right font-mono font-semibold tabular-nums text-orange-600">
+                          {p.remainingPv} PV
+                        </td>
+
+                        {/* 9. Gains Directs Accumulés */}
+                        <td className="py-3 px-3 text-right font-mono font-bold text-neutral-900 tabular-nums">
+                          {formatMoney(p.totalDirectEarnings)}
+                        </td>
+
+                        {/* 10. Gains Payés */}
+                        <td className="py-3 px-3 text-right font-mono text-emerald-700 tabular-nums font-semibold">
+                          {formatMoney(p.paidEarnings)}
+                        </td>
+
+                        {/* 11. Gains Restants */}
+                        <td className="py-3 px-3 text-right font-mono font-bold tabular-nums">
+                          <span className={isSettled ? 'text-neutral-400' : 'text-red-600'}>
                             {formatMoney(p.remainingEarnings)}
                           </span>
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded mt-0.5 ${
-                            isSettled ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800'
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded block mt-0.5 text-center ${
+                            isSettled ? 'bg-emerald-100 text-emerald-800' : 'bg-red-50 text-red-700'
                           }`}>
                             {isSettled ? 'Soldé' : 'Reste à payer'}
                           </span>
-                        </div>
-                      </td>
+                        </td>
 
-                      <td className="py-3 px-4 text-right font-mono font-bold text-amber-700 tabular-nums">
-                        {formatPV(p.totalPv)}
-                      </td>
+                        {/* 12. Actions & Impression Fiche */}
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {/* Fiche Individuelle print/preview button */}
+                            <button
+                              onClick={() => setSelectedPartnerForSheet(p)}
+                              className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold transition-colors inline-flex items-center gap-1 border border-orange-200"
+                              title="Afficher et imprimer la fiche individuelle complète"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Fiche</span>
+                            </button>
 
-                      {/* PV Placés / Restants */}
-                      <td className="py-3 px-4 text-right whitespace-nowrap font-mono text-[11px]">
-                        <span className="text-emerald-700 font-semibold">{p.placedPv} placés</span>
-                        <span className="text-neutral-300 mx-1">/</span>
-                        <span className={`font-semibold ${p.remainingPv > 0 ? 'text-amber-600' : 'text-neutral-400'}`}>
-                          {p.remainingPv} restants
-                        </span>
-                      </td>
+                            {/* Payout */}
+                            <button
+                              onClick={() => handleOpenPayout(p)}
+                              disabled={p.remainingEarnings <= 0}
+                              className={`px-2 py-1 text-xs font-semibold rounded-lg transition-all ${
+                                p.remainingEarnings > 0
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                                  : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                              }`}
+                              title="Régler les commissions"
+                            >
+                              Régler
+                            </button>
 
-                      {/* Action buttons */}
-                      <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
-                        <button
-                          onClick={() => handleOpenPayout(p)}
-                          disabled={p.remainingEarnings <= 0}
-                          className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
-                            p.remainingEarnings > 0
-                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                              : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-                          }`}
-                          title="Régler commission"
-                        >
-                          Régler
-                        </button>
-
-                        <button
-                          onClick={() => handleOpenPlacement(p)}
-                          disabled={p.remainingPv <= 0}
-                          className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
-                            p.remainingPv > 0
-                              ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
-                              : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
-                          }`}
-                          title="Placer des PV dans l'arbre"
-                        >
-                          Placer PV
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                            {/* Placer PV */}
+                            <button
+                              onClick={() => handleOpenPlacement(p)}
+                              disabled={p.remainingPv <= 0}
+                              className={`px-2 py-1 text-xs font-semibold rounded-lg transition-all ${
+                                p.remainingPv > 0
+                                  ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
+                                  : 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
+                              }`}
+                              title="Placer des PV dans l'arbre"
+                            >
+                              Placer
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Modal: Nouveau Partenaire */}
+      {/* ===================================================================== */}
+      {/* VUE 2: ARBORESCENCE & GÉNÉALOGIE DU RÉSEAU (ARBRE MLM INTERACTIF)     */}
+      {/* ===================================================================== */}
+      {activeTab === 'tree' && (
+        <div className="bg-white rounded-2xl border border-neutral-200 shadow-xs p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <GitFork className="w-5 h-5 text-orange-600" />
+                <h3 className="font-extrabold text-neutral-900 text-base">
+                  Arborescence Généalogique du Réseau (Arbre MLM)
+                </h3>
+              </div>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                Vue hiérarchique : visualisez les parrains, filleuls, statuts de carte et répartition des PV par branche
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsTreePrintModalOpen(true)}
+                className="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Imprimer l'Arbre du Réseau</span>
+              </button>
+
+              <button
+                onClick={handleDownloadNetworkTreePDF}
+                className="px-3.5 py-1.5 bg-neutral-900 hover:bg-black text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs"
+              >
+                <FileDown className="w-3.5 h-3.5 text-orange-400" />
+                <span>Exporter PDF</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Interactive Tree View Nodes */}
+          <div className="space-y-4">
+            {rootPartners.map(root => {
+              const rootDownlines = getDirectDownlines(root.id);
+              const card = root.cardStatus || (root.level === 'Diamant' ? 'VIP' : root.level === 'Or' ? 'Premium' : 'Start');
+              const qual = root.qualificationStatus || (root.totalPv >= 100 ? 'Qualifié' : 'Non qualifié');
+
+              return (
+                <div key={root.id} className="border border-amber-300 rounded-2xl bg-amber-50/30 p-4 space-y-3">
+                  {/* Root Node Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-amber-200 shadow-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center font-bold shadow-xs">
+                        <Crown className="w-5 h-5 text-amber-100" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-neutral-900 text-sm">{root.firstName} {root.lastName}</span>
+                          <span className="font-mono text-xs font-bold text-red-600">({root.code})</span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-100 text-purple-800 border border-purple-200">
+                            {card}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            qual === 'Qualifié' ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-500'
+                          }`}>
+                            {qual}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2">
+                          <span>Tête de réseau principal</span>
+                          <span>·</span>
+                          <span>Inscrit le : {root.registeredAt || '2025-11-04'}</span>
+                          <span>·</span>
+                          <span className="text-orange-700 font-bold">{rootDownlines.length} filleul(s) direct(s)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs font-mono">
+                      <div>
+                        <span className="text-neutral-400 block text-[10px]">PV Totaux</span>
+                        <span className="font-bold text-amber-700 text-sm">{formatPV(root.totalPv)}</span>
+                      </div>
+                      <div>
+                        <span className="text-neutral-400 block text-[10px]">Gains Directs</span>
+                        <span className="font-bold text-neutral-900 text-sm">{formatMoney(root.totalDirectEarnings)}</span>
+                      </div>
+                      <button
+                        onClick={() => setSelectedPartnerForSheet(root)}
+                        className="px-2.5 py-1 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-800 font-bold text-xs flex items-center gap-1 transition-colors"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Fiche</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Downline Children (Level 1) */}
+                  <div className="pl-6 sm:pl-10 space-y-3 border-l-2 border-dashed border-amber-300 ml-4">
+                    {rootDownlines.length === 0 ? (
+                      <div className="text-xs text-neutral-400 italic py-2">
+                        Aucun filleul rattaché pour l'instant.
+                      </div>
+                    ) : (
+                      rootDownlines.map(child => {
+                        const childDownlines = getDirectDownlines(child.id);
+                        const childCard = child.cardStatus || (child.level === 'Diamant' ? 'VIP' : child.level === 'Or' ? 'Premium' : child.level === 'Argent' ? 'Standard' : 'Start');
+                        const childQual = child.qualificationStatus || (child.totalPv >= 100 ? 'Qualifié' : 'Non qualifié');
+
+                        return (
+                          <div key={child.id} className="space-y-2.5">
+                            {/* Child Level 1 Card */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-neutral-200 shadow-2xs hover:border-orange-300 transition-colors">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-neutral-100 flex items-center justify-center font-bold text-neutral-700 text-xs font-mono">
+                                  1
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-neutral-900">{child.firstName} {child.lastName}</span>
+                                    <span className="font-mono text-xs text-neutral-500">({child.code})</span>
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                      childCard === 'VIP' ? 'bg-purple-100 text-purple-800' :
+                                      childCard === 'Premium' ? 'bg-orange-100 text-orange-800' :
+                                      childCard === 'Standard' ? 'bg-blue-100 text-blue-800' :
+                                      'bg-neutral-100 text-neutral-700'
+                                    }`}>
+                                      {childCard}
+                                    </span>
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                                      childQual === 'Qualifié' ? 'bg-emerald-50 text-emerald-700' : 'bg-neutral-100 text-neutral-500'
+                                    }`}>
+                                      {childQual}
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-neutral-400 mt-0.5">
+                                    Parrain : {root.firstName} {root.lastName} · {childDownlines.length} filleul(s) direct(s)
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 text-xs font-mono">
+                                <div>
+                                  <span className="text-neutral-400 block text-[9px]">PV</span>
+                                  <span className="font-bold text-amber-700">{formatPV(child.totalPv)}</span>
+                                </div>
+                                <div>
+                                  <span className="text-neutral-400 block text-[9px]">Gains</span>
+                                  <span className="font-bold text-neutral-900">{formatMoney(child.totalDirectEarnings)}</span>
+                                </div>
+                                <button
+                                  onClick={() => setSelectedPartnerForSheet(child)}
+                                  className="px-2 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-semibold flex items-center gap-1"
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  <span>Fiche</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Level 2 Children */}
+                            {childDownlines.length > 0 && (
+                              <div className="pl-6 sm:pl-8 space-y-2 border-l-2 border-dashed border-orange-200 ml-3">
+                                {childDownlines.map(grandChild => {
+                                  const grandCard = grandChild.cardStatus || 'Start';
+                                  const grandQual = grandChild.qualificationStatus || 'Qualifié';
+
+                                  return (
+                                    <div key={grandChild.id} className="flex items-center justify-between bg-neutral-50/70 p-2.5 rounded-lg border border-neutral-200 text-xs">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-neutral-400 font-mono text-[10px]">└── Niv 2:</span>
+                                        <span className="font-bold text-neutral-800">{grandChild.firstName} {grandChild.lastName}</span>
+                                        <span className="font-mono text-[10px] text-neutral-500">({grandChild.code})</span>
+                                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-neutral-200 text-neutral-700">
+                                          {grandCard}
+                                        </span>
+                                        <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                                          grandQual === 'Qualifié' ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-200 text-neutral-600'
+                                        }`}>
+                                          {grandQual}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex items-center gap-3 font-mono">
+                                        <span className="font-bold text-amber-700">{grandChild.totalPv} PV</span>
+                                        <span className="text-neutral-600">{formatMoney(grandChild.totalDirectEarnings)}</span>
+                                        <button
+                                          onClick={() => setSelectedPartnerForSheet(grandChild)}
+                                          className="p-1 text-neutral-400 hover:text-orange-600"
+                                          title="Voir fiche"
+                                        >
+                                          <FileText className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 1: ÉTAT ADMINISTRATEUR ET FINANCIER GLOBAL (FORMAT IMPRESSION)  */}
+      {/* ===================================================================== */}
+      {isGlobalReportModalOpen && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-3 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-5xl w-full border border-neutral-200 shadow-2xl p-6 space-y-6 my-8 animate-in fade-in zoom-in-95 duration-200">
+            {/* Top Toolbar (hidden on print) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 pb-4 no-print">
+              <div>
+                <span className="text-xs font-bold text-red-600 uppercase tracking-wider block">
+                  Rapport Officiel de Direction
+                </span>
+                <h3 className="text-base font-extrabold text-neutral-900">
+                  État Administratif & Financier Global du Réseau Whieda Smart
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadGlobalReportPDF}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  <span>Télécharger PDF (Paysage)</span>
+                </button>
+
+                <button
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 bg-neutral-900 hover:bg-black text-white rounded-lg text-xs font-bold flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimer le Rapport</span>
+                </button>
+
+                <button
+                  onClick={() => setIsGlobalReportModalOpen(false)}
+                  className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Document Body */}
+            <div className="print-page space-y-6 text-xs text-neutral-900">
+              {/* Document Header Letterhead */}
+              <div className="flex items-start justify-between border-b-2 border-red-600 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center font-black text-base">
+                      W
+                    </div>
+                    <span className="text-lg font-black tracking-tight text-neutral-900">
+                      {companySettings?.name || 'WHIEDA SMART'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-neutral-500 mt-0.5">
+                    Direction Générale · Caisse & Administration du Réseau MLM
+                  </p>
+                  <p className="text-[10px] text-neutral-400">
+                    {companySettings?.address || 'Boulevard de la Liberté, Akwa - Douala, Cameroun'}
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <span className="px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 font-bold text-[10px] uppercase tracking-wider border border-red-200">
+                    Document de Synthèse ERP
+                  </span>
+                  <div className="text-xs font-bold text-neutral-800 mt-1">
+                    Édité le {new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  </div>
+                  <div className="text-[10px] text-neutral-500 font-mono">
+                    Période d'exercice : Année 2026
+                  </div>
+                </div>
+              </div>
+
+              {/* Synthèse 1: Administrative & Synthèse 2: Financière */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Administrative */}
+                <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 space-y-2">
+                  <div className="text-xs font-bold text-orange-700 uppercase tracking-wide">
+                    1. Synthèse Administrative
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Total Partenaires Enregistrés :</span>
+                      <span className="font-bold text-neutral-900">{totalPartners} membres actifs</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Membres Qualifiés :</span>
+                      <span className="font-bold text-emerald-700">{countQualified} qualifiés ({((countQualified / totalPartners) * 100).toFixed(0)}%)</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Membres Non Qualifiés :</span>
+                      <span className="font-bold text-neutral-600">{countNonQualified}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-neutral-200 pt-1 text-[11px]">
+                      <span className="text-neutral-500">Répartition par Cartes :</span>
+                      <span className="font-semibold text-neutral-800">
+                        Start ({countStart}) · Standard ({countStandard}) · Premium ({countPremium}) · VIP ({countVIP})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financière */}
+                <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 space-y-2">
+                  <div className="text-xs font-bold text-red-700 uppercase tracking-wide">
+                    2. Synthèse Financière & Points de Valeur (PV)
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Cumul PV Réseau :</span>
+                      <span className="font-bold text-amber-700 font-mono">{formatPV(totalPvNetwork)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">PV Placés / PV Restants :</span>
+                      <span className="font-mono text-neutral-800">{totalPvPlaced} placés / {totalPvRemaining} restants</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Gains Directs Totaux Générés :</span>
+                      <span className="font-bold text-neutral-900 font-mono">{formatMoney(totalGainsGenerated)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-neutral-200 pt-1">
+                      <span className="text-neutral-500">Déjà Réglé : <strong className="text-emerald-700">{formatMoney(totalPaid)}</strong></span>
+                      <span className="text-red-600 font-bold font-mono">Reste à payer : {formatMoney(totalRemaining)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Complete 10-Column Table */}
+              <div className="border border-neutral-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-neutral-100 text-neutral-700 uppercase text-[9px] font-bold border-b border-neutral-200">
+                    <tr>
+                      <th className="p-2">Date Entrée</th>
+                      <th className="p-2">Nom et ID Partenaire</th>
+                      <th className="p-2">Parrain Up</th>
+                      <th className="p-2">Statut Carte</th>
+                      <th className="p-2 text-center">Qualif.</th>
+                      <th className="p-2 text-right">PV Total</th>
+                      <th className="p-2 text-right">PV Placés</th>
+                      <th className="p-2 text-right">PV Rest.</th>
+                      <th className="p-2 text-right">Gains Accumulés</th>
+                      <th className="p-2 text-right">Gains Payés</th>
+                      <th className="p-2 text-right">Reste à Payer</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 text-neutral-800 text-[11px]">
+                    {partners.map(p => {
+                      const card = p.cardStatus || (p.level === 'Diamant' ? 'VIP' : p.level === 'Or' ? 'Premium' : p.level === 'Argent' ? 'Standard' : 'Start');
+                      const qual = p.qualificationStatus || (p.totalPv >= 100 ? 'Qualifié' : 'Non qualifié');
+
+                      return (
+                        <tr key={p.id} className="hover:bg-neutral-50/50">
+                          <td className="p-2 font-mono text-neutral-500">{p.registeredAt || '2026-01-10'}</td>
+                          <td className="p-2 font-bold text-neutral-900">{p.firstName} {p.lastName} <span className="font-mono text-red-600">({p.code})</span></td>
+                          <td className="p-2 text-neutral-600">{p.sponsorName ? p.sponsorName : 'Tête de réseau'}</td>
+                          <td className="p-2 font-semibold">{card} ({p.level})</td>
+                          <td className="p-2 text-center">
+                            <span className={qual === 'Qualifié' ? 'text-emerald-700 font-bold' : 'text-neutral-400'}>
+                              {qual}
+                            </span>
+                          </td>
+                          <td className="p-2 text-right font-mono font-bold text-amber-700">{p.totalPv}</td>
+                          <td className="p-2 text-right font-mono text-neutral-600">{p.placedPv}</td>
+                          <td className="p-2 text-right font-mono text-orange-600">{p.remainingPv}</td>
+                          <td className="p-2 text-right font-mono font-bold">{formatMoney(p.totalDirectEarnings)}</td>
+                          <td className="p-2 text-right font-mono text-emerald-700">{formatMoney(p.paidEarnings)}</td>
+                          <td className="p-2 text-right font-mono font-bold text-red-600">{formatMoney(p.remainingEarnings)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="bg-neutral-100 font-bold border-t border-neutral-300 text-xs">
+                    <tr>
+                      <td colSpan={5} className="p-2 text-neutral-900">
+                        TOTAL CONSOLIDÉ ({totalPartners} MEMBRES)
+                      </td>
+                      <td className="p-2 text-right font-mono text-amber-700">{totalPvNetwork}</td>
+                      <td className="p-2 text-right font-mono text-neutral-700">{totalPvPlaced}</td>
+                      <td className="p-2 text-right font-mono text-orange-700">{totalPvRemaining}</td>
+                      <td className="p-2 text-right font-mono text-neutral-900">{formatMoney(totalGainsGenerated)}</td>
+                      <td className="p-2 text-right font-mono text-emerald-700">{formatMoney(totalPaid)}</td>
+                      <td className="p-2 text-right font-mono text-red-600">{formatMoney(totalRemaining)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Signatures & Stamp Zone */}
+              <div className="pt-6 border-t border-neutral-200 grid grid-cols-2 gap-8">
+                <div className="space-y-1">
+                  <div className="font-semibold text-neutral-800">Responsable Administratif du Réseau</div>
+                  <div className="text-[10px] text-neutral-400">Certifié conforme aux registres d'affiliation MLM</div>
+                  <div className="w-32 h-14 border border-dashed border-neutral-300 rounded-lg flex items-center justify-center text-[10px] text-neutral-400 mt-2">
+                    Cachet Direction Réseau
+                  </div>
+                </div>
+
+                <div className="text-right space-y-1">
+                  <div className="font-semibold text-neutral-800">Direction Financière & Caisse</div>
+                  <div className="text-[10px] text-neutral-400">Arrêté financier certifié régulier</div>
+                  <div className="w-32 h-14 border border-dashed border-neutral-300 rounded-lg flex items-center justify-center text-[10px] text-neutral-400 mt-2 ml-auto">
+                    Cachet Caisse Centrale
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 2: FICHE INDIVIDUELLE DU PARTENAIRE (RÉSEAU, ADMIN & FINANCIER) */}
+      {/* ===================================================================== */}
+      {selectedPartnerForSheet && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-3 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-3xl w-full border border-neutral-200 shadow-2xl p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-200">
+            {/* Top Toolbar (hidden on print) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 pb-3 no-print">
+              <div>
+                <span className="text-[11px] font-bold text-orange-600 uppercase tracking-wider block">
+                  Dossier Partenaire MLM
+                </span>
+                <h3 className="text-base font-extrabold text-neutral-900">
+                  Fiche Individuelle : {selectedPartnerForSheet.firstName} {selectedPartnerForSheet.lastName} ({selectedPartnerForSheet.code})
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleDownloadPartnerSheetPDF(selectedPartnerForSheet)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  <span>Télécharger PDF</span>
+                </button>
+
+                <button
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 bg-neutral-900 hover:bg-black text-white rounded-lg text-xs font-bold flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimer la Fiche</span>
+                </button>
+
+                <button
+                  onClick={() => setSelectedPartnerForSheet(null)}
+                  className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Body */}
+            <div className="print-page space-y-5 text-xs text-neutral-900">
+              {/* Header Letterhead */}
+              <div className="flex items-start justify-between border-b-2 border-orange-600 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-orange-600 text-white flex items-center justify-center font-black text-base">
+                      W
+                    </div>
+                    <span className="text-base font-black tracking-tight text-neutral-900">
+                      {companySettings?.name || 'WHIEDA SMART'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-neutral-500 mt-0.5">
+                    Fiche Individuelle du Partenaire MLM · Situation Administrative & Financière
+                  </p>
+                </div>
+
+                <div className="text-right">
+                  <span className="font-mono text-sm font-black text-red-600">
+                    ID : {selectedPartnerForSheet.code}
+                  </span>
+                  <div className="text-[10px] text-neutral-400">
+                    Édité le {new Date().toLocaleDateString('fr-FR')}
+                  </div>
+                </div>
+              </div>
+
+              {/* 1. Informations Administratives */}
+              <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 space-y-3">
+                <span className="font-bold text-orange-700 uppercase tracking-wide text-xs block">
+                  1. Informations Administratives
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <span className="text-neutral-400 block text-[10px]">Nom complet</span>
+                    <span className="font-bold text-neutral-900">{selectedPartnerForSheet.firstName} {selectedPartnerForSheet.lastName}</span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-400 block text-[10px]">Statut de Carte</span>
+                    <span className="font-bold text-purple-700">
+                      {selectedPartnerForSheet.cardStatus || 'Start'} (Grade : {selectedPartnerForSheet.level})
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-400 block text-[10px]">Statut Qualification</span>
+                    <span className={`font-bold ${
+                      (selectedPartnerForSheet.qualificationStatus || 'Qualifié') === 'Qualifié' ? 'text-emerald-700' : 'text-neutral-500'
+                    }`}>
+                      {selectedPartnerForSheet.qualificationStatus || 'Qualifié'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-400 block text-[10px]">Parrain Réseau (Up-Line)</span>
+                    <span className="font-semibold text-neutral-800">
+                      {selectedPartnerForSheet.sponsorName ? `${selectedPartnerForSheet.sponsorName} (${selectedPartnerForSheet.sponsorCode})` : 'Tête de réseau'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-400 block text-[10px]">Date d'entrée au réseau</span>
+                    <span className="font-mono">{selectedPartnerForSheet.registeredAt || '2026-01-10'}</span>
+                  </div>
+                  <div>
+                    <span className="text-neutral-400 block text-[10px]">Téléphone / Contact</span>
+                    <span className="font-mono">{selectedPartnerForSheet.phone}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. Bilan Financier Personnel & Situation PV */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 space-y-2">
+                  <span className="font-bold text-red-700 uppercase tracking-wide text-xs block">
+                    2. Bilan Financier Personnel
+                  </span>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Gains Directs Accumulés :</span>
+                      <span className="font-mono font-bold text-neutral-900">{formatMoney(selectedPartnerForSheet.totalDirectEarnings)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Commissions Déjà Soldées :</span>
+                      <span className="font-mono font-semibold text-emerald-700">{formatMoney(selectedPartnerForSheet.paidEarnings)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-neutral-200 pt-1 font-bold">
+                      <span className="text-neutral-700">Reste à Payer au Partenaire :</span>
+                      <span className="font-mono text-red-600">{formatMoney(selectedPartnerForSheet.remainingEarnings)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-neutral-50 rounded-xl border border-neutral-200 space-y-2">
+                  <span className="font-bold text-amber-700 uppercase tracking-wide text-xs block">
+                    3. Bilan Points de Valeur (PV)
+                  </span>
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Total PV Accumulés :</span>
+                      <span className="font-mono font-bold text-amber-700">{formatPV(selectedPartnerForSheet.totalPv)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">PV Placés dans l'arbre :</span>
+                      <span className="font-mono text-neutral-800">{selectedPartnerForSheet.placedPv} PV</span>
+                    </div>
+                    <div className="flex justify-between border-t border-neutral-200 pt-1 font-bold">
+                      <span className="text-neutral-700">PV Restants à placer :</span>
+                      <span className="font-mono text-orange-600">{selectedPartnerForSheet.remainingPv} PV</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. État de son Réseau Personnel (Filleuls) */}
+              <div>
+                {(() => {
+                  const downlines = getDirectDownlines(selectedPartnerForSheet.id);
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-neutral-900 uppercase tracking-wide text-xs">
+                          4. État de son Réseau Personnel ({downlines.length} Filleul(s) Direct(s))
+                        </span>
+                      </div>
+
+                      <div className="border border-neutral-200 rounded-xl overflow-hidden">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-neutral-100 text-neutral-600 uppercase text-[9px] font-bold border-b border-neutral-200">
+                            <tr>
+                              <th className="p-2">Code</th>
+                              <th className="p-2">Nom & Prénom</th>
+                              <th className="p-2">Carte</th>
+                              <th className="p-2 text-center">Qualif.</th>
+                              <th className="p-2 text-right">PV Total</th>
+                              <th className="p-2 text-right">Date Entrée</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-100 text-neutral-800 text-[11px]">
+                            {downlines.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="p-4 text-center text-neutral-400 italic">
+                                  Ce partenaire n'a pas encore de filleuls directement enregistrés.
+                                </td>
+                              </tr>
+                            ) : (
+                              downlines.map(child => (
+                                <tr key={child.id} className="hover:bg-neutral-50/50">
+                                  <td className="p-2 font-mono font-bold text-red-600">{child.code}</td>
+                                  <td className="p-2 font-semibold text-neutral-900">{child.firstName} {child.lastName}</td>
+                                  <td className="p-2 font-medium">{child.cardStatus || 'Start'}</td>
+                                  <td className="p-2 text-center">
+                                    <span className={child.qualificationStatus === 'Qualifié' ? 'text-emerald-700 font-bold' : 'text-neutral-400'}>
+                                      {child.qualificationStatus || 'Qualifié'}
+                                    </span>
+                                  </td>
+                                  <td className="p-2 text-right font-mono font-bold text-amber-700">{child.totalPv} PV</td>
+                                  <td className="p-2 text-right font-mono text-neutral-500">{child.registeredAt || '2026-02-01'}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Cachet & Visa */}
+              <div className="pt-4 border-t border-neutral-200 flex items-center justify-between text-[10px] text-neutral-500">
+                <div>
+                  <span>Délivré par le secrétariat réseau Whieda Smart.</span>
+                  <div className="w-24 h-12 border border-dashed border-neutral-300 rounded mt-1 flex items-center justify-center text-neutral-400">
+                    Cachet Réseau
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="font-semibold text-neutral-800">Le Responsable d'Affiliation MLM</div>
+                  <div className="font-mono text-neutral-400 mt-1">[Fiche conforme aux registres]</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 3: ARBORESCENCE DU RÉSEAU (FORMAT IMPRESSION GIK / ARBRE)        */}
+      {/* ===================================================================== */}
+      {isTreePrintModalOpen && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-3 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-4xl w-full border border-neutral-200 shadow-2xl p-6 space-y-5 my-8 animate-in fade-in zoom-in-95 duration-200">
+            {/* Top Toolbar (hidden on print) */}
+            <div className="flex items-center justify-between border-b border-neutral-200 pb-3 no-print">
+              <div>
+                <span className="text-[11px] font-bold text-orange-600 uppercase tracking-wider block">
+                  Document Officiel d'Arborescence
+                </span>
+                <h3 className="text-base font-extrabold text-neutral-900">
+                  Arbre Généalogique Complet du Réseau Whieda Smart
+                </h3>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadNetworkTreePDF}
+                  className="px-3 py-1.5 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  <span>Télécharger PDF</span>
+                </button>
+
+                <button
+                  onClick={() => window.print()}
+                  className="px-3 py-1.5 bg-neutral-900 hover:bg-black text-white rounded-lg text-xs font-bold flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimer l'Arbre</span>
+                </button>
+
+                <button
+                  onClick={() => setIsTreePrintModalOpen(false)}
+                  className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Tree Content */}
+            <div className="print-page space-y-4 text-xs text-neutral-900">
+              <div className="flex items-start justify-between border-b-2 border-orange-600 pb-3">
+                <div>
+                  <span className="text-lg font-black text-neutral-900">
+                    {companySettings?.name || 'WHIEDA SMART'}
+                  </span>
+                  <p className="text-[10px] text-neutral-500">
+                    Cartographie & Généalogie des Affiliations Réseau (Parrains & Filleuls)
+                  </p>
+                </div>
+                <div className="text-right text-[10px] text-neutral-500 font-mono">
+                  Édité le {new Date().toLocaleDateString('fr-FR')} · {totalPartners} membres au total
+                </div>
+              </div>
+
+              {/* Structured Hierarchical List for Print */}
+              <div className="space-y-3 font-mono text-xs">
+                {rootPartners.map(root => {
+                  const downlines1 = getDirectDownlines(root.id);
+                  const card = root.cardStatus || 'VIP';
+                  const qual = root.qualificationStatus || 'Qualifié';
+
+                  return (
+                    <div key={root.id} className="border border-neutral-300 rounded-xl p-3 bg-neutral-50/50 space-y-2">
+                      <div className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-neutral-200">
+                        <span className="font-bold text-neutral-900">
+                          👑 [TÊTE DE RÉSEAU] {root.code} : {root.firstName} {root.lastName}
+                        </span>
+                        <div className="space-x-3 text-[11px]">
+                          <span className="font-semibold text-purple-700">Carte : {card}</span>
+                          <span className="font-semibold text-emerald-700">[{qual}]</span>
+                          <span className="font-bold text-amber-700">{root.totalPv} PV</span>
+                        </div>
+                      </div>
+
+                      {downlines1.map(c1 => {
+                        const downlines2 = getDirectDownlines(c1.id);
+                        const c1Card = c1.cardStatus || 'Start';
+                        const c1Qual = c1.qualificationStatus || 'Qualifié';
+
+                        return (
+                          <div key={c1.id} className="pl-6 space-y-1.5 border-l-2 border-neutral-300 ml-4">
+                            <div className="flex justify-between items-center bg-white p-2 rounded border border-neutral-200 text-[11px]">
+                              <span>├── [Niv 1] {c1.code} : {c1.firstName} {c1.lastName}</span>
+                              <div className="space-x-2">
+                                <span className="text-neutral-700 font-semibold">Carte : {c1Card}</span>
+                                <span className="text-emerald-700">[{c1Qual}]</span>
+                                <span className="text-amber-700 font-bold">{c1.totalPv} PV</span>
+                              </div>
+                            </div>
+
+                            {downlines2.map(c2 => (
+                              <div key={c2.id} className="pl-6 flex justify-between items-center text-[10px] text-neutral-600 bg-neutral-100/60 p-1.5 rounded">
+                                <span>└── [Niv 2] {c2.code} : {c2.firstName} {c2.lastName}</span>
+                                <div className="space-x-2 font-mono">
+                                  <span>Carte : {c2.cardStatus || 'Start'}</span>
+                                  <span className="text-emerald-700">[{c2.qualificationStatus || 'Qualifié'}]</span>
+                                  <span className="font-bold text-amber-700">{c2.totalPv} PV</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="pt-3 border-t border-neutral-200 text-center text-[10px] text-neutral-400">
+                Document de structure MLM officiel Whieda Smart. Généré automatiquement par le système ERP.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 4: NOUVEAU PARTENAIRE MLM                                       */}
+      {/* ===================================================================== */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-lg w-full border border-neutral-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -381,7 +1346,7 @@ export const PartnersView: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Code / ID Unique Partenaire *
+                    Code Unique (ID) *
                   </label>
                   <input
                     type="text"
@@ -393,17 +1358,17 @@ export const PartnersView: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Grade Initial
+                    Statut de Carte *
                   </label>
                   <select
-                    value={level}
-                    onChange={e => setLevel(e.target.value)}
+                    value={cardStatus}
+                    onChange={e => setCardStatus(e.target.value as PartnerCardStatus)}
                     className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
                   >
-                    <option value="Bronze">Bronze</option>
-                    <option value="Argent">Argent</option>
-                    <option value="Or">Or</option>
-                    <option value="Diamant">Diamant</option>
+                    <option value="Start">Start</option>
+                    <option value="Standard">Standard</option>
+                    <option value="Premium">Premium</option>
+                    <option value="VIP">VIP</option>
                   </select>
                 </div>
               </div>
@@ -424,19 +1389,19 @@ export const PartnersView: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Email
+                    Statut Qualification *
                   </label>
-                  <input
-                    type="email"
-                    placeholder="email@..."
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
+                  <select
+                    value={qualificationStatus}
+                    onChange={e => setQualificationStatus(e.target.value as PartnerQualification)}
                     className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  />
+                  >
+                    <option value="Qualifié">Qualifié</option>
+                    <option value="Non qualifié">Non qualifié</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Parrain Up */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1">
                   Parrain (Partenaire Up-Line)
@@ -449,7 +1414,7 @@ export const PartnersView: React.FC = () => {
                   <option value="">-- Aucun (Tête de Réseau) --</option>
                   {partners.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.firstName} {p.lastName} ({p.code}) - {p.level}
+                      {p.firstName} {p.lastName} ({p.code}) - {p.cardStatus || p.level}
                     </option>
                   ))}
                 </select>
@@ -467,7 +1432,7 @@ export const PartnersView: React.FC = () => {
                   type="submit"
                   className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 rounded-lg shadow-sm"
                 >
-                  Créer Partenaire
+                  Créer le Partenaire
                 </button>
               </div>
             </form>
@@ -475,7 +1440,9 @@ export const PartnersView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Régler la Commission */}
+      {/* ===================================================================== */}
+      {/* MODAL 5: RÉGLER LA COMMISSION                                         */}
+      {/* ===================================================================== */}
       {selectedPartnerForPayout && (
         <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full border border-neutral-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -571,7 +1538,9 @@ export const PartnersView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Placer des PV */}
+      {/* ===================================================================== */}
+      {/* MODAL 6: PLACER DES PV                                                */}
+      {/* ===================================================================== */}
       {selectedPartnerForPlacement && (
         <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-md w-full border border-neutral-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">

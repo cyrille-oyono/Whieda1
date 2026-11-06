@@ -234,10 +234,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Partner MLM Functions
-  const addPartner = (data: Omit<Partner, 'id' | 'totalDirectEarnings' | 'paidEarnings' | 'remainingEarnings' | 'totalPv' | 'placedPv' | 'remainingPv' | 'registeredAt'>) => {
+  const addPartner = (data: Omit<Partner, 'id' | 'totalDirectEarnings' | 'paidEarnings' | 'remainingEarnings' | 'totalPv' | 'placedPv' | 'remainingPv' | 'registeredAt'> & { cardStatus?: any; qualificationStatus?: any }) => {
     const newPartner: Partner = {
       ...data,
       id: `ptn-${Date.now()}`,
+      cardStatus: data.cardStatus || 'Start',
+      qualificationStatus: data.qualificationStatus || 'Qualifié',
       totalDirectEarnings: 0,
       paidEarnings: 0,
       remainingEarnings: 0,

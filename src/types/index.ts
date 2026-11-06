@@ -60,6 +60,9 @@ export interface User {
 }
 
 
+export type PartnerCardStatus = 'Start' | 'Standard' | 'Premium' | 'VIP';
+export type PartnerQualification = 'Qualifié' | 'Non qualifié';
+
 export interface Partner {
   id: string;
   code: string; // e.g. WH-PTN-101
@@ -70,6 +73,8 @@ export interface Partner {
   sponsorId?: string; // Partenaire Up
   sponsorName?: string;
   sponsorCode?: string;
+  cardStatus?: PartnerCardStatus; // Statut carte (Start, Standard, Premium, VIP)
+  qualificationStatus?: PartnerQualification; // Qualifié / Non qualifié
   totalDirectEarnings: number; // Gains directs accumulés (FCFA)
   paidEarnings: number; // Déjà réglé
   remainingEarnings: number; // Reste à payer
@@ -77,7 +82,7 @@ export interface Partner {
   placedPv: number; // PV placés
   remainingPv: number; // PV restants
   level: string; // ex: 'Bronze', 'Argent', 'Or', 'Diamant'
-  registeredAt: string;
+  registeredAt: string; // Date d'entrée
 }
 
 export type VisitorType = 'patient' | 'client' | 'staff';
