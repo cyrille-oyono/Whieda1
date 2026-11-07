@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { Sale, CompanySettings, Partner, Visit } from '../types';
+import { Sale, CompanySettings, Partner, Visit, PartnerPayoutRecord } from '../types';
 import { formatMoney, formatPV } from './formatters';
 
 export const generateInvoicePDF = (sale: Sale, companySettings?: CompanySettings): void => {
@@ -1416,5 +1416,272 @@ export const generatePatientsVisitsReportPDF = (
 
   const cleanMonth = month.padStart(2, '0');
   doc.save(`Recapitulatif_Patients_Whieda_${year}_${cleanMonth}.pdf`);
+};
+
+export const generatePartnerPayoutsReportPDF = (
+  payouts: PartnerPayoutRecord[],
+  companySettings?: CompanySettings
+): void => {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth(); // 297mm
+  const pageHeight = doc.internal.pageSize.getHeight(); // 210mm
+  const margin = 12;
+  let currentY = 12;
+
+  // Header Brand Bar
+  doc.setFillColor(234, 88, 12); // Orange-600
+  doc.rect(margin, currentY, pageWidth - (margin * 2), 2.5, 'F');
+  currentY += 7;
+
+  // Company Information & Document Title
+  const compName = companySettings?.name || 'WHIEDA SMART';
+  const compTagline = companySettings?.tagline || 'Cabinet de Santé, Pharmacie Naturelle & Prospérité Partagée';
+  const compAddress = companySettings?.address || 'Boulevard de la Liberté, Face Ancien Cinéma Le Wouri, Akwa - Douala';
+  const compPhone = companySettings?.phone || '(+237) 699 00 11 22';
+
+  // Company Name
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(15);
+  doc.setTextColor(220, 38, 38);
+  doc.text(compName, margin, currentY);
+
+  // Document Title
+  doc.setFontSize(14);
+  doc.setTextColor(30, 41, 59);
+  doc.text('SUIVI DES PAIEMENTS DES PARTENAIRES & PV', pageWidth - margin, currentY, { align: 'right' });
+  currentY += 5;
+
+  // Subtitles
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(compTagline, margin, currentY);
+
+  const todayStr = new Date().toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  doc.text(`Édité le : ${todayStr}`, pageWidth - margin, currentY, { align: 'right' });
+  currentY += 4;
+
+  doc.text(`${compAddress} | Tél: ${compPhone}`, margin, currentY);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(234, 88, 12);
+  doc.text('DOCUMENT OFFICIEL DE TRÉSORERIE & MLM', pageWidth - margin, currentY, { align: 'right' });
+  currentY += 6;
+
+  // Divider
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.4);
+  doc.line(margin, currentY, pageWidth - margin, currentY);
+  currentY += 5;
+
+  // Summary Metrics Banner
+  const totalAmountPaid = payouts.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+  const totalPvPlaced = payouts.reduce((sum, p) => sum + (p.pvPlaced || 0), 0);
+  const totalCount = payouts.length;
+
+  const boxW = (pageWidth - (margin * 2) - 8) / 3;
+  const boxH = 15;
+
+  // Box 1: Total Montant Payé
+  doc.setFillColor(239, 246, 255);
+  doc.roundedRect(margin, currentY, boxW, boxH, 2, 2, 'F');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(30, 64, 175);
+  doc.text('TOTAL MONTANT PAYÉ AUX PARTENAIRES', margin + 4, currentY + 5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(formatMoney(totalAmountPaid), margin + 4, currentY + 11.5);
+
+  // Box 2: Total PV Placés
+  doc.setFillColor(254, 243, 199);
+  doc.roundedRect(margin + boxW + 4, currentY, boxW, boxH, 2, 2, 'F');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(146, 64, 14);
+  doc.text('TOTAL POINTS DE VALEUR (PV) PLACÉS', margin + boxW + 8, currentY + 5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(formatPV(totalPvPlaced), margin + boxW + 8, currentY + 11.5);
+
+  // Box 3: Nombre de versements
+  doc.setFillColor(240, 253, 244);
+  doc.roundedRect(margin + (boxW * 2) + 8, currentY, boxW, boxH, 2, 2, 'F');
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(22, 101, 52);
+  doc.text('NOMBRE TOTAL DE PAIEMENTS ENREGISTRÉS', margin + (boxW * 2) + 12, currentY + 5);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(`${totalCount} versement${totalCount > 1 ? 's' : ''}`, margin + (boxW * 2) + 12, currentY + 11.5);
+
+  currentY += boxH + 6;
+
+  // Table Columns Definition (Landscape 273mm printable width)
+  const cols = [
+    { label: 'N°', x: margin + 2, width: 12, align: 'left' },
+    { label: 'Date', x: margin + 14, width: 24, align: 'left' },
+    { label: 'Partenaire', x: margin + 38, width: 62, align: 'left' },
+    { label: 'ID Partenaire', x: margin + 100, width: 32, align: 'left' },
+    { label: 'Montant Payé (FCFA)', x: margin + 132, width: 42, align: 'right' },
+    { label: 'PV Placés', x: margin + 174, width: 28, align: 'right' },
+    { label: 'Mode / Réf.', x: margin + 204, width: 36, align: 'left' },
+    { label: 'Enregistré par', x: margin + 242, width: 31, align: 'left' },
+  ];
+
+  // Header Table
+  doc.setFillColor(30, 41, 59); // Slate-800
+  doc.rect(margin, currentY, pageWidth - (margin * 2), 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(255, 255, 255);
+
+  cols.forEach(col => {
+    if (col.align === 'right') {
+      doc.text(col.label, col.x + col.width, currentY + 4.8, { align: 'right' });
+    } else {
+      doc.text(col.label, col.x, currentY + 4.8);
+    }
+  });
+
+  currentY += 7;
+
+  // Rows
+  if (payouts.length === 0) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Aucun versement partenaire enregistré pour le moment.', pageWidth / 2, currentY + 12, { align: 'center' });
+    currentY += 20;
+  } else {
+    payouts.forEach((p, idx) => {
+      // Page break check
+      if (currentY > pageHeight - 32) {
+        doc.addPage();
+        currentY = 15;
+
+        // Re-print header
+        doc.setFillColor(30, 41, 59);
+        doc.rect(margin, currentY, pageWidth - (margin * 2), 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(255, 255, 255);
+        cols.forEach(col => {
+          if (col.align === 'right') {
+            doc.text(col.label, col.x + col.width, currentY + 4.8, { align: 'right' });
+          } else {
+            doc.text(col.label, col.x, currentY + 4.8);
+          }
+        });
+        currentY += 7;
+      }
+
+      // Alternating background
+      if (idx % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, currentY, pageWidth - (margin * 2), 6.5, 'F');
+      }
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(15, 23, 42);
+
+      // N°
+      doc.text(String(idx + 1), cols[0].x, currentY + 4.5);
+
+      // Date
+      doc.text(p.date, cols[1].x, currentY + 4.5);
+
+      // Nom Partenaire
+      doc.setFont('helvetica', 'bold');
+      const truncatedName = p.partnerName.length > 28 ? p.partnerName.slice(0, 26) + '...' : p.partnerName;
+      doc.text(truncatedName, cols[2].x, currentY + 4.5);
+
+      // ID Partenaire
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(234, 88, 12);
+      doc.text(p.partnerCode || p.partnerId, cols[3].x, currentY + 4.5);
+
+      // Montant Payé
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(16, 185, 129); // Green-600
+      doc.text(formatMoney(p.amountPaid), cols[4].x + cols[4].width, currentY + 4.5, { align: 'right' });
+
+      // PV Placés
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(217, 119, 6); // Amber-600
+      doc.text(formatPV(p.pvPlaced), cols[5].x + cols[5].width, currentY + 4.5, { align: 'right' });
+
+      // Mode / Réf
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      const methodLabel = p.paymentMethod === 'orange_money' ? 'Orange Money'
+        : p.paymentMethod === 'mtn_momo' ? 'MTN MoMo'
+        : p.paymentMethod === 'especes' ? 'Espèces'
+        : p.paymentMethod === 'carte' ? 'Carte Bancaire'
+        : (p.paymentMethod || 'Virement');
+      const refStr = p.reference ? ` (${p.reference.slice(-8)})` : '';
+      const modeText = `${methodLabel}${refStr}`;
+      doc.text(modeText.length > 18 ? modeText.slice(0, 16) + '..' : modeText, cols[6].x, currentY + 4.5);
+
+      // Enregistré par
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      const truncatedBy = (p.recordedBy || 'Direction').length > 18 ? (p.recordedBy || 'Direction').slice(0, 16) + '..' : (p.recordedBy || 'Direction');
+      doc.text(truncatedBy, cols[7].x, currentY + 4.5);
+
+      // Bottom Row Border
+      doc.setDrawColor(241, 245, 249);
+      doc.line(margin, currentY + 6.5, pageWidth - margin, currentY + 6.5);
+      currentY += 6.5;
+    });
+  }
+
+  // Total summary footer row
+  if (payouts.length > 0) {
+    currentY += 2;
+    doc.setFillColor(241, 245, 249);
+    doc.rect(margin, currentY, pageWidth - (margin * 2), 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 41, 59);
+    doc.text('TOTAL CUMULÉ DES VERSEMENTS :', margin + 4, currentY + 4.8);
+    doc.setTextColor(16, 185, 129);
+    doc.text(formatMoney(totalAmountPaid), cols[4].x + cols[4].width, currentY + 4.8, { align: 'right' });
+    doc.setTextColor(217, 119, 6);
+    doc.text(formatPV(totalPvPlaced), cols[5].x + cols[5].width, currentY + 4.8, { align: 'right' });
+    currentY += 10;
+  }
+
+  // Signatures on Bottom
+  if (currentY > pageHeight - 25) {
+    doc.addPage();
+    currentY = 20;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Le Responsable de Trésorerie & Comptabilité', margin + 25, currentY);
+  doc.text('La Direction Générale Whieda Smart', pageWidth - margin - 85, currentY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text('[Visa & Mention Bon Pour Paiement]', margin + 25, currentY + 5);
+  doc.text('[Visa, Cachet & Approbation]', pageWidth - margin - 85, currentY + 5);
+
+  const nowFile = new Date().toISOString().split('T')[0];
+  doc.save(`Etat_Paiements_Partenaires_Whieda_${nowFile}.pdf`);
 };
 

@@ -12,7 +12,9 @@ import {
   Database,
   Flame,
   AlertTriangle,
-  Globe
+  Globe,
+  ShieldAlert,
+  Wallet
 } from 'lucide-react';
 
 export type NavTab = 
@@ -25,7 +27,8 @@ export type NavTab =
   | 'medical' 
   | 'suppliers' 
   | 'users' 
-  | 'database';
+  | 'database'
+  | 'audit';
 
 interface SidebarProps {
   activeTab: NavTab;
@@ -97,8 +100,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
     },
     {
       id: 'overview',
-      label: 'Rapports Financiers & KPI',
-      icon: <LayoutDashboard className="w-4 h-4" />,
+      label: 'Finance, Dépenses & Bilan',
+      icon: <Wallet className="w-4 h-4" />,
       allowedRoles: ['accountant', 'admin'],
     },
     {
@@ -113,6 +116,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
       id: 'users',
       label: 'Personnel & Accès (RBAC)',
       icon: <UserCog className="w-4 h-4" />,
+      allowedRoles: ['admin'],
+    },
+    {
+      id: 'audit',
+      label: 'Journal d\'Audit (Logs)',
+      icon: <ShieldAlert className="w-4 h-4 text-red-500" />,
       allowedRoles: ['admin'],
     },
     {

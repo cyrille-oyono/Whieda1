@@ -3,7 +3,8 @@ import {
   User, UserRole, Partner, Patient, Visit, ProductService, 
   Sale, SupplierOrder, MedicalRecord, VisitStatus, OrderStatus,
   SaleItem, PaymentMethod, PrescriptionItem, MedicalExamDefinition, ExamParameter,
-  CompanySettings, AppointmentRequest, PartnerApplication, AssociatedCenter
+  CompanySettings, AppointmentRequest, PartnerApplication, AssociatedCenter,
+  Expense, PartnerPayoutRecord, AuditLog
 } from '../types';
 
 import { 
@@ -11,7 +12,7 @@ import {
   INITIAL_PRODUCTS, INITIAL_VISITS, INITIAL_SALES, 
   INITIAL_ORDERS, INITIAL_RECORDS, INITIAL_EXAM_DEFINITIONS,
   INITIAL_COMPANY_SETTINGS, INITIAL_APPOINTMENTS, INITIAL_PARTNER_APPLICATIONS,
-  INITIAL_ASSOCIATED_CENTERS
+  INITIAL_ASSOCIATED_CENTERS, INITIAL_EXPENSES, INITIAL_PARTNER_PAYOUTS, INITIAL_AUDIT_LOGS
 } from '../data/mockData';
 
 interface AppContextType {
@@ -95,6 +96,21 @@ interface AppContextType {
   addExamDefinition: (exam: Omit<MedicalExamDefinition, 'id' | 'createdAt'>) => void;
   updateExamDefinition: (id: string, exam: Partial<MedicalExamDefinition>) => void;
   deleteExamDefinition: (id: string) => void;
+
+  // Expenses (Gestion des Dépenses - Admin & Comptable)
+  expenses: Expense[];
+  addExpense: (expense: Omit<Expense, 'id' | 'createdAt' | 'recordedBy'> & { recordedBy?: string }) => Expense;
+  updateExpense: (id: string, expense: Partial<Expense>) => void;
+  deleteExpense: (id: string) => void;
+
+  // Partner Payouts Tracking (Finances des Partenaires & Suivi des Paiements)
+  partnerPayouts: PartnerPayoutRecord[];
+  addPartnerPayout: (payout: Omit<PartnerPayoutRecord, 'id' | 'createdAt' | 'recordedBy'> & { recordedBy?: string }) => PartnerPayoutRecord;
+
+  // Audit Logs (Journal d'Audit - Admin Uniquement)
+  auditLogs: AuditLog[];
+  addAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp'>) => void;
+  clearAuditLogs: () => void;
 }
 
 
@@ -172,6 +188,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_ASSOCIATED_CENTERS;
   });
 
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
+    const saved = localStorage.getItem('whieda_expenses');
+    return saved ? JSON.parse(saved) : INITIAL_EXPENSES;
+  });
+
+  const [partnerPayouts, setPartnerPayouts] = useState<PartnerPayoutRecord[]>(() => {
+    const saved = localStorage.getItem('whieda_partner_payouts');
+    return saved ? JSON.parse(saved) : INITIAL_PARTNER_PAYOUTS;
+  });
+
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
+    const saved = localStorage.getItem('whieda_audit_logs');
+    return saved ? JSON.parse(saved) : INITIAL_AUDIT_LOGS;
+  });
+
   // Save to localStorage on changes
   useEffect(() => {
     localStorage.setItem('whieda_users', JSON.stringify(users));
@@ -215,6 +246,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('whieda_associated_centers', JSON.stringify(associatedCenters));
   }, [associatedCenters]);
+  useEffect(() => {
+    localStorage.setItem('whieda_expenses', JSON.stringify(expenses));
+  }, [expenses]);
+  useEffect(() => {
+    localStorage.setItem('whieda_partner_payouts', JSON.stringify(partnerPayouts));
+  }, [partnerPayouts]);
+  useEffect(() => {
+    localStorage.setItem('whieda_audit_logs', JSON.stringify(auditLogs));
+  }, [auditLogs]);
 
   // Auth helpers
   const switchRole = (role: UserRole) => {
@@ -279,6 +319,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deletePartner = (partnerId: string) => {
+    const target = partners.find(p => p.id === partnerId);
+    if (target) {
+      addAuditLog({
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        userRole: currentUser.role,
+        action: 'Suppression partenaire',
+        module: 'Partenaires',
+        details: `Suppression du partenaire ${target.firstName} ${target.lastName} (${target.code}) - Total PV: ${target.totalPv}, Gains accumulés: ${target.totalDirectEarnings.toLocaleString()} FCFA`,
+        severity: 'danger',
+      });
+    }
     setPartners(prev => prev.filter(p => p.id !== partnerId));
   };
 
@@ -586,6 +638,126 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setAssociatedCenters(prev => prev.filter(c => c.id !== id));
   };
 
+  // Audit Logs Functions (Journal d'Audit - Sécurisé)
+  const addAuditLog = (logData: Omit<AuditLog, 'id' | 'timestamp'>) => {
+    const newLog: AuditLog = {
+      ...logData,
+      id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs(prev => [newLog, ...prev]);
+  };
+
+  const clearAuditLogs = () => {
+    setAuditLogs([]);
+  };
+
+  // Expenses Functions (Gestion des Dépenses)
+  const addExpense = (data: Omit<Expense, 'id' | 'createdAt' | 'recordedBy'> & { recordedBy?: string }): Expense => {
+    const newExpense: Expense = {
+      ...data,
+      id: `exp-${Date.now()}`,
+      recordedBy: data.recordedBy || currentUser.fullName,
+      createdAt: new Date().toISOString(),
+    };
+    setExpenses(prev => [newExpense, ...prev]);
+
+    // Trace in Audit Log
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Enregistrement de dépense',
+      module: 'Dépenses',
+      details: `Ajout dépense [${newExpense.category}] : "${newExpense.title}" d'un montant de ${newExpense.amount.toLocaleString('fr-FR')} FCFA`,
+      severity: 'info',
+    });
+
+    return newExpense;
+  };
+
+  const updateExpense = (id: string, updatedData: Partial<Expense>) => {
+    const existing = expenses.find(e => e.id === id);
+    if (!existing) return;
+
+    setExpenses(prev => prev.map(e => {
+      if (e.id === id) {
+        return { ...e, ...updatedData };
+      }
+      return e;
+    }));
+
+    // Trace in Audit Log
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Modification de dépense',
+      module: 'Dépenses',
+      details: `Modification de la dépense #${id} "${existing.title}". Montant précédent: ${existing.amount.toLocaleString('fr-FR')} FCFA -> Nouveau: ${(updatedData.amount ?? existing.amount).toLocaleString('fr-FR')} FCFA`,
+      severity: 'warning',
+    });
+  };
+
+  const deleteExpense = (id: string) => {
+    const existing = expenses.find(e => e.id === id);
+    if (!existing) return;
+
+    setExpenses(prev => prev.filter(e => e.id !== id));
+
+    // Trace in Audit Log
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Suppression de dépense',
+      module: 'Dépenses',
+      details: `Suppression définitive de la dépense [${existing.category}] : "${existing.title}" d'un montant de ${existing.amount.toLocaleString('fr-FR')} FCFA`,
+      severity: 'danger',
+    });
+  };
+
+  // Partner Payouts Tracking (Finances des Partenaires & Suivi des Paiements)
+  const addPartnerPayout = (data: Omit<PartnerPayoutRecord, 'id' | 'createdAt' | 'recordedBy'> & { recordedBy?: string }): PartnerPayoutRecord => {
+    const newPayout: PartnerPayoutRecord = {
+      ...data,
+      id: `pay-${Date.now()}`,
+      recordedBy: data.recordedBy || currentUser.fullName,
+      createdAt: new Date().toISOString(),
+    };
+
+    setPartnerPayouts(prev => [newPayout, ...prev]);
+
+    // Also update Partner's financials and placed PV in real time
+    setPartners(prev => prev.map(p => {
+      if (p.id === data.partnerId) {
+        const actualAmount = Math.min(data.amountPaid, p.remainingEarnings);
+        const actualPv = Math.min(data.pvPlaced, p.remainingPv);
+        return {
+          ...p,
+          paidEarnings: p.paidEarnings + actualAmount,
+          remainingEarnings: Math.max(0, p.remainingEarnings - actualAmount),
+          placedPv: p.placedPv + actualPv,
+          remainingPv: Math.max(0, p.remainingPv - actualPv),
+        };
+      }
+      return p;
+    }));
+
+    // Trace in Audit Log
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Validation de paiement partenaire',
+      module: 'Paiements Partenaires',
+      details: `Paiement de ${data.amountPaid.toLocaleString('fr-FR')} FCFA et placement de ${data.pvPlaced} PV validés pour le partenaire ${data.partnerName} (${data.partnerCode})`,
+      severity: 'info',
+    });
+
+    return newPayout;
+  };
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -634,6 +806,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addExamDefinition,
       updateExamDefinition,
       deleteExamDefinition,
+      expenses,
+      addExpense,
+      updateExpense,
+      deleteExpense,
+      partnerPayouts,
+      addPartnerPayout,
+      auditLogs,
+      addAuditLog,
+      clearAuditLogs,
     }}>
       {children}
     </AppContext.Provider>

@@ -12,6 +12,8 @@ import { SupplierOrdersView } from './views/SupplierOrdersView';
 import { UsersView } from './views/UsersView';
 import { SupabaseArchitectureView } from './views/SupabaseArchitectureView';
 import { ShowcaseView } from './views/ShowcaseView';
+import { FinancialAuditView } from './views/FinancialAuditView';
+import { AuditLogView } from './views/AuditLogView';
 import { LoginModal } from './views/LoginModal';
 
 function MainLayout() {
@@ -24,8 +26,8 @@ function MainLayout() {
   // - Réceptionniste : page d'accueil, Page des produits, enregistrement des visiteurs & consultation patients/clients
   // - Médecin : page d'accueil, page de produits, bilans de santé et rapports
   // - Caissière : page d'accueil, pages produits, caisse enregistreuse, factures
-  // - Comptable : page d'accueil, pages produits, historique des ventes, gestion de stock, rapports financiers, commande de stock
-  // - Admin : toutes les pages
+  // - Comptable : page d'accueil, pages produits, historique des ventes, gestion de stock, rapports financiers, commande de stock, dépenses, suivi paiements
+  // - Admin : toutes les pages (y compris le Journal d'Audit STRICTEMENT réservé à l'Admin)
   const rolePermissions: Record<NavTab, string[]> = {
     showcase: ['visitor', 'receptionist', 'doctor', 'cashier', 'accountant', 'admin'],
     products: ['receptionist', 'doctor', 'cashier', 'accountant', 'admin'],
@@ -36,6 +38,7 @@ function MainLayout() {
     overview: ['accountant', 'admin'],
     partners: ['accountant', 'admin'],
     users: ['admin'],
+    audit: ['admin'], // STRICTEMENT RESTREINT À L'ADMIN
     database: ['admin'],
   };
 
@@ -72,7 +75,8 @@ function MainLayout() {
         {/* Main Content Viewport */}
         <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
           {currentTab === 'showcase' && <ShowcaseView onNavigate={setActiveTab} />}
-          {currentTab === 'overview' && <DashboardView onNavigate={setActiveTab} />}
+          {currentTab === 'overview' && <FinancialAuditView onNavigateToAudit={() => setActiveTab('audit')} />}
+          {currentTab === 'audit' && <AuditLogView />}
           {currentTab === 'visits' && <VisitsView />}
           {currentTab === 'pos' && <PosView />}
           {currentTab === 'products' && <ProductsView />}

@@ -129,7 +129,66 @@ export interface Partner {
   placedPv: number; // PV placés
   remainingPv: number; // PV restants
   level: PartnerGrade | string; // ex: 'Directeur', 'Ambassadeur', 'Diamant 7', 'Ruby'
+  isFounder?: boolean; // Partenaire fondateur de l'entreprise
   registeredAt: string; // Date d'entrée
+}
+
+export type ExpenseCategory = 
+  | 'Nutrition'
+  | 'Transport'
+  | 'Salaire'
+  | 'Entretien'
+  | 'Campagnes'
+  | 'Matériel';
+
+export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  'Nutrition',
+  'Transport',
+  'Salaire',
+  'Entretien',
+  'Campagnes',
+  'Matériel'
+];
+
+export interface Expense {
+  id: string;
+  date: string; // YYYY-MM-DD
+  title: string; // Intitulé
+  category: ExpenseCategory; // Nutrition, Transport, Salaire, Entretien, Campagnes, Matériel
+  amount: number; // Prix (Montant en FCFA)
+  recordedBy: string; // Nom de l'utilisateur ayant saisi
+  notes?: string;
+  createdAt: string;
+}
+
+export interface PartnerPayoutRecord {
+  id: string;
+  date: string; // YYYY-MM-DD
+  partnerId: string;
+  partnerName: string;
+  partnerCode: string;
+  amountPaid: number; // Montant payé en FCFA
+  pvPlaced: number; // PV placés
+  recordedBy: string;
+  paymentMethod?: string;
+  reference?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export type AuditSeverity = 'info' | 'warning' | 'danger';
+
+export interface AuditLog {
+  id: string;
+  timestamp: string; // ISO String
+  userId: string;
+  userName: string;
+  userRole: UserRole;
+  action: string; // Intitulé de l'action
+  module: 'Dépenses' | 'Paiements Partenaires' | 'Partenaires' | 'Ventes' | 'Examens' | 'Paramètres' | 'Sécurité';
+  details: string; // Description détaillée
+  severity: AuditSeverity;
+  ipAddress?: string;
 }
 
 export type VisitorType = 'patient' | 'client' | 'staff';

@@ -15,6 +15,7 @@ CREATE TYPE product_category AS ENUM ('regulateur', 'nettoyage', 'entretien', 'a
 CREATE TYPE payment_method AS ENUM ('especes', 'orange_money', 'mtn_momo', 'carte');
 CREATE TYPE supplier_order_status AS ENUM ('brouillon', 'envoyee', 'recue', 'annulee');
 CREATE TYPE medical_record_status AS ENUM ('en_cours', 'cloture');
+CREATE TYPE expense_category AS ENUM ('Nutrition', 'Transport', 'Salaire', 'Entretien', 'Campagnes', 'Matériel');
 
 -- ====================================================================
 -- 3. TABLES DU SYSTÈME
@@ -176,16 +177,51 @@ CREATE TABLE public.medical_records (
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
 );
 
--- Table Historique des Règlements de Commissions Partenaires
+-- Table Gestion des Dépenses de l'Entreprise
+CREATE TABLE public.expenses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    title TEXT NOT NULL,
+    category expense_category NOT NULL,
+    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+    recorded_by UUID REFERENCES public.profiles(id),
+    recorded_by_name TEXT NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
+);
+
+-- Table Historique des Règlements de Commissions Partenaires & Suivi des PV
 CREATE TABLE public.partner_payouts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     partner_id UUID NOT NULL REFERENCES public.partners(id) ON DELETE CASCADE,
-    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+    partner_name TEXT NOT NULL,
+    partner_code TEXT NOT NULL,
+    amount_paid NUMERIC(12, 2) NOT NULL CHECK (amount_paid > 0),
+    pv_placed NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
     payout_date DATE NOT NULL DEFAULT CURRENT_DATE,
     payment_method TEXT NOT NULL, -- 'Orange Money', 'MTN MoMo', 'Virement', 'Espèces'
     reference_tx TEXT,
     approved_by UUID REFERENCES public.profiles(id),
+    recorded_by TEXT,
     notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
+);
+
+-- Table du Journal d'Audit & Sécurité Système (Audit Log)
+-- Trace les actions sensibles (suppression de dépenses, modifications financières, validations de paiements)
+-- ACCÈS STRICTEMENT RÉSERVÉ À L'ADMINISTRATEUR
+CREATE TABLE public.audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now()),
+    user_id UUID REFERENCES public.profiles(id),
+    user_name TEXT NOT NULL,
+    user_role user_role NOT NULL,
+    action TEXT NOT NULL,
+    module TEXT NOT NULL,
+    details TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'danger')),
+    ip_address TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc', now())
 );
 
@@ -294,6 +330,8 @@ ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders_suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.medical_records ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.partner_payouts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Helper function pour récupérer le rôle de l'utilisateur connecté
 CREATE OR REPLACE FUNCTION public.get_auth_role()
@@ -312,6 +350,8 @@ CREATE POLICY "Admin full access sale_items" ON public.sale_items FOR ALL TO aut
 CREATE POLICY "Admin full access orders_suppliers" ON public.orders_suppliers FOR ALL TO authenticated USING (public.get_auth_role() = 'admin');
 CREATE POLICY "Admin full access medical_records" ON public.medical_records FOR ALL TO authenticated USING (public.get_auth_role() = 'admin');
 CREATE POLICY "Admin full access partner_payouts" ON public.partner_payouts FOR ALL TO authenticated USING (public.get_auth_role() = 'admin');
+CREATE POLICY "Admin full access expenses" ON public.expenses FOR ALL TO authenticated USING (public.get_auth_role() = 'admin');
+CREATE POLICY "Admin full access audit_logs" ON public.audit_logs FOR ALL TO authenticated USING (public.get_auth_role() = 'admin');
 
 -- POLITIQUES RÉCEPTIONNISTE :
 -- Gestion de l'accueil, registre des visites, ajout de patients avec parrain, lecture produits & partenaires
@@ -328,11 +368,13 @@ CREATE POLICY "Doctor can read patient info" ON public.patients FOR SELECT TO au
 CREATE POLICY "Doctor can view products for prescriptions" ON public.products_services FOR SELECT TO authenticated USING (public.get_auth_role() = 'doctor');
 
 -- POLITIQUES COMPTABLE :
--- Vente caisse POS, suivi financier des partenaires, gestion des commandes fournisseurs, versements
+-- Vente caisse POS, suivi financier des partenaires, gestion des dépenses, commandes fournisseurs, versements
+-- NOTE CRITIQUE : Le comptable N'A PAS ACCÈS à la table audit_logs (strictement admin)
 CREATE POLICY "Accountant manage sales" ON public.sales FOR ALL TO authenticated USING (public.get_auth_role() = 'accountant');
 CREATE POLICY "Accountant manage sale items" ON public.sale_items FOR ALL TO authenticated USING (public.get_auth_role() = 'accountant');
 CREATE POLICY "Accountant manage supplier orders" ON public.orders_suppliers FOR ALL TO authenticated USING (public.get_auth_role() = 'accountant');
 CREATE POLICY "Accountant manage partner payouts" ON public.partner_payouts FOR ALL TO authenticated USING (public.get_auth_role() = 'accountant');
+CREATE POLICY "Accountant manage expenses" ON public.expenses FOR ALL TO authenticated USING (public.get_auth_role() = 'accountant');
 CREATE POLICY "Accountant read/update partners" ON public.partners FOR ALL TO authenticated USING (public.get_auth_role() = 'accountant');
 CREATE POLICY "Accountant read/update products inventory" ON public.products_services FOR ALL TO authenticated USING (public.get_auth_role() = 'accountant');
 CREATE POLICY "Accountant read visits" ON public.daily_visits FOR SELECT TO authenticated USING (public.get_auth_role() = 'accountant');
