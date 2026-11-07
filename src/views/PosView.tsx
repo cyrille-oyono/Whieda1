@@ -22,12 +22,14 @@ import {
   Receipt,
   FileDown,
   CheckCircle,
-  Download
+  Download,
+  Edit3,
+  AlertTriangle
 } from 'lucide-react';
 import { generateInvoicePDF } from '../utils/pdfGenerator';
 
 export const PosView: React.FC = () => {
-  const { products, patients, partners, completeSale, currentUser, sales, companySettings } = useApp();
+  const { products, patients, partners, completeSale, updateSale, deleteSale, currentUser, sales, companySettings } = useApp();
 
   // Tab: 'pos' (Caisse active) or 'invoices' (Factures & Historique)
   const [activePosTab, setActivePosTab] = useState<'pos' | 'invoices'>('pos');
@@ -50,6 +52,93 @@ export const PosView: React.FC = () => {
   // Receipt Modal
   const [lastSale, setLastSale] = useState<Sale | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+
+  // Edit & Delete Sale States
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [editSaleForm, setEditSaleForm] = useState<{
+    patientName: string;
+    sponsorPartnerId: string;
+    paymentMethod: PaymentMethod;
+    paymentReference: string;
+    discountAmount: number;
+    date: string;
+    time: string;
+    status: 'complete' | 'annule';
+  }>({
+    patientName: '',
+    sponsorPartnerId: '',
+    paymentMethod: 'especes',
+    paymentReference: '',
+    discountAmount: 0,
+    date: '',
+    time: '',
+    status: 'complete',
+  });
+  const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
+
+  const handleStartEditSale = (sale: Sale) => {
+    setEditingSale(sale);
+    setEditSaleForm({
+      patientName: sale.patientName,
+      sponsorPartnerId: sale.sponsorPartnerId || '',
+      paymentMethod: sale.paymentMethod,
+      paymentReference: sale.paymentReference || '',
+      discountAmount: sale.discountAmount || 0,
+      date: sale.date,
+      time: sale.time,
+      status: sale.status,
+    });
+  };
+
+  const handleSaveSaleEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSale) return;
+
+    const sponsor = partners.find(p => p.id === editSaleForm.sponsorPartnerId);
+    const discount = Math.max(0, Number(editSaleForm.discountAmount) || 0);
+
+    const updatedData: Partial<Sale> = {
+      patientName: editSaleForm.patientName.trim(),
+      sponsorPartnerId: sponsor ? sponsor.id : undefined,
+      sponsorPartnerName: sponsor ? `${sponsor.firstName} ${sponsor.lastName}` : undefined,
+      sponsorPartnerCode: sponsor ? sponsor.code : undefined,
+      paymentMethod: editSaleForm.paymentMethod,
+      paymentReference: editSaleForm.paymentReference.trim() || undefined,
+      discountAmount: discount,
+      date: editSaleForm.date,
+      time: editSaleForm.time,
+      status: editSaleForm.status,
+    };
+
+    updateSale(editingSale.id, updatedData);
+
+    // Update lastSale if currently open in receipt modal
+    if (lastSale?.id === editingSale.id) {
+      setLastSale(prev => prev ? { 
+        ...prev, 
+        ...updatedData, 
+        netAmount: Math.max(0, prev.totalAmount - discount) 
+      } : null);
+    }
+
+    setPdfNotification(`Reçu ${editingSale.receiptNumber} modifié avec succès !`);
+    setTimeout(() => setPdfNotification(null), 3500);
+    setEditingSale(null);
+  };
+
+  const handleConfirmDeleteSale = () => {
+    if (!saleToDelete) return;
+    deleteSale(saleToDelete.id);
+
+    if (lastSale?.id === saleToDelete.id) {
+      setIsReceiptOpen(false);
+      setLastSale(null);
+    }
+
+    setPdfNotification(`Reçu ${saleToDelete.receiptNumber} supprimé et stocks réajustés !`);
+    setTimeout(() => setPdfNotification(null), 3500);
+    setSaleToDelete(null);
+  };
 
   const handleDownloadPdf = (sale: Sale) => {
     try {
@@ -661,7 +750,7 @@ export const PosView: React.FC = () => {
                     <th className="py-3 px-4">Articles</th>
                     <th className="py-3 px-4">Règlement</th>
                     <th className="py-3 px-4 text-right">Total Net</th>
-                    <th className="py-3 px-4 text-center">Action</th>
+                    <th className="py-3 px-4 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-200">
@@ -700,18 +789,20 @@ export const PosView: React.FC = () => {
                           {sale.items.reduce((sum, item) => sum + item.quantity, 0)} art.
                         </td>
                         <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-700">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            sale.status === 'annule' ? 'bg-red-100 text-red-700' : 'bg-neutral-100 text-neutral-700'
+                          }`}>
                             {sale.paymentMethod}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-black text-neutral-900">
                           {formatMoney(sale.netAmount)}
                         </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
                             <button
                               onClick={() => handleDownloadPdf(sale)}
-                              className="px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold transition-colors inline-flex items-center gap-1 border border-orange-200"
+                              className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold transition-colors inline-flex items-center gap-1 border border-orange-200"
                               title="Télécharger la facture officielle en PDF"
                             >
                               <FileDown className="w-3.5 h-3.5" />
@@ -722,11 +813,27 @@ export const PosView: React.FC = () => {
                                 setLastSale(sale);
                                 setIsReceiptOpen(true);
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium transition-colors inline-flex items-center gap-1 border border-neutral-200"
-                              title="Afficher et imprimer la facture"
+                              className="px-2 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium transition-colors inline-flex items-center gap-1 border border-neutral-200"
+                              title="Afficher et imprimer le reçu"
                             >
                               <Printer className="w-3.5 h-3.5" />
                               <span>Reçu</span>
+                            </button>
+                            <button
+                              onClick={() => handleStartEditSale(sale)}
+                              className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold transition-colors inline-flex items-center gap-1 border border-blue-200"
+                              title="Modifier cette vente / reçu"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Modifier</span>
+                            </button>
+                            <button
+                              onClick={() => setSaleToDelete(sale)}
+                              className="px-2 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 font-semibold transition-colors inline-flex items-center gap-1 border border-red-200"
+                              title="Supprimer cette vente"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Supprimer</span>
                             </button>
                           </div>
                         </td>
@@ -785,11 +892,11 @@ export const PosView: React.FC = () => {
                 {/* Primary Action: Download PDF */}
                 <button
                   onClick={() => handleDownloadPdf(lastSale)}
-                  className="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
+                  className="px-3 py-1.5 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
                   title="Télécharger la facture en format PDF officiel"
                 >
                   <FileDown className="w-3.5 h-3.5" />
-                  <span>Télécharger PDF</span>
+                  <span>PDF</span>
                 </button>
 
                 {/* Print button */}
@@ -800,6 +907,26 @@ export const PosView: React.FC = () => {
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Imprimer</span>
+                </button>
+
+                {/* Modifier button */}
+                <button
+                  onClick={() => handleStartEditSale(lastSale)}
+                  className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
+                  title="Modifier les données de ce reçu"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Modifier</span>
+                </button>
+
+                {/* Supprimer button */}
+                <button
+                  onClick={() => setSaleToDelete(lastSale)}
+                  className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
+                  title="Supprimer définitivement ce reçu"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Supprimer</span>
                 </button>
 
                 {/* Close */}
@@ -1011,6 +1138,264 @@ export const PosView: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL : MODIFIER UNE VENTE / REÇU CAISSE                 */}
+      {/* ========================================================= */}
+      {editingSale && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-8 animate-in fade-in zoom-in duration-150">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
+                  <Edit3 className="w-4 h-4" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">
+                    Modifier la Vente / Reçu Caisse
+                  </h3>
+                  <p className="text-[11px] font-mono text-orange-600 font-semibold">
+                    {editingSale.receiptNumber}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingSale(null)}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Edit Form */}
+            <form onSubmit={handleSaveSaleEdit} className="space-y-4">
+              {/* Date & Heure */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Date de la Vente *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={editSaleForm.date}
+                    onChange={e => setEditSaleForm(prev => ({ ...prev, date: e.target.value }))}
+                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Heure *
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={editSaleForm.time}
+                    onChange={e => setEditSaleForm(prev => ({ ...prev, time: e.target.value }))}
+                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              {/* Client Name */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Nom du Patient / Client *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Nom complet du client"
+                  value={editSaleForm.patientName}
+                  onChange={e => setEditSaleForm(prev => ({ ...prev, patientName: e.target.value }))}
+                  className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden font-medium"
+                />
+              </div>
+
+              {/* Parrain MLM */}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Parrain MLM Rattaché (Bénéficiaire des PV & Commissions)
+                </label>
+                <select
+                  value={editSaleForm.sponsorPartnerId}
+                  onChange={e => setEditSaleForm(prev => ({ ...prev, sponsorPartnerId: e.target.value }))}
+                  className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden font-medium"
+                >
+                  <option value="">-- Aucun parrain (Vente Interne Whieda) --</option>
+                  {partners.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.firstName} {p.lastName} ({p.code}) — {p.level}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Mode de règlement & Référence */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Mode de Règlement *
+                  </label>
+                  <select
+                    value={editSaleForm.paymentMethod}
+                    onChange={e => setEditSaleForm(prev => ({ ...prev, paymentMethod: e.target.value as PaymentMethod }))}
+                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden font-medium"
+                  >
+                    <option value="orange_money">Orange Money</option>
+                    <option value="mtn_momo">MTN MoMo</option>
+                    <option value="especes">Espèces (Cash)</option>
+                    <option value="carte">Carte Bancaire / Virement</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Référence Reçu / Tx
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="ex: OM-2026-991"
+                    value={editSaleForm.paymentReference}
+                    onChange={e => setEditSaleForm(prev => ({ ...prev, paymentReference: e.target.value }))}
+                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden"
+                  />
+                </div>
+              </div>
+
+              {/* Remise & Statut */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Remise Commerciale (FCFA)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={editSaleForm.discountAmount}
+                    onChange={e => setEditSaleForm(prev => ({ ...prev, discountAmount: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Statut de la Facture
+                  </label>
+                  <select
+                    value={editSaleForm.status}
+                    onChange={e => setEditSaleForm(prev => ({ ...prev, status: e.target.value as 'complete' | 'annule' }))}
+                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden font-bold"
+                  >
+                    <option value="complete">Encaissée / Complète</option>
+                    <option value="annule">Annulée</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Articles Summary Info */}
+              <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2 text-xs">
+                <span className="text-neutral-500 font-semibold block text-[11px] uppercase tracking-wider">
+                  Articles Vendus sur ce Ticket ({editingSale.items.length})
+                </span>
+                <div className="max-h-24 overflow-y-auto space-y-1">
+                  {editingSale.items.map((it, idx) => (
+                    <div key={idx} className="flex justify-between text-[11px] text-neutral-700">
+                      <span>{it.quantity}x {it.productName}</span>
+                      <span className="font-mono font-bold">{formatMoney(it.subtotal)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 border-t border-neutral-200 flex justify-between items-center text-xs">
+                  <span className="text-neutral-600">Sous-total Brut :</span>
+                  <span className="font-mono font-bold">{formatMoney(editingSale.totalAmount)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-neutral-600">Nouveau Net à Payer :</span>
+                  <span className="font-mono font-black text-orange-600 text-sm">
+                    {formatMoney(Math.max(0, editingSale.totalAmount - (Number(editSaleForm.discountAmount) || 0)))}
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingSale(null)}
+                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-semibold"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Enregistrer les Modifications</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL : CONFIRMER LA SUPPRESSION D'UN REÇU CAISSE         */}
+      {/* ========================================================= */}
+      {saleToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-base font-bold text-neutral-900">
+                Confirmer la suppression du reçu ?
+              </h3>
+              <p className="text-xs text-neutral-600">
+                Vous êtes sur le point de supprimer définitivement la vente : <br />
+                <strong className="text-orange-600 font-mono font-bold text-sm">
+                  {saleToDelete.receiptNumber}
+                </strong>
+                <br />
+                Client : <strong>{saleToDelete.patientName}</strong> · Montant : <strong>{formatMoney(saleToDelete.netAmount)}</strong>
+              </p>
+
+              {/* Warning box */}
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-left text-[11px] text-red-800 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-red-900">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Conséquences automatiques de la suppression :</span>
+                </div>
+                <p>• Les <strong>{saleToDelete.items.reduce((s, i) => s + i.quantity, 0)} articles</strong> vendus seront automatiquement remis en stock dans la pharmacie/boutique.</p>
+                {saleToDelete.sponsorPartnerId && (
+                  <p>• Les <strong>{formatPV(saleToDelete.totalPv)} PV</strong> et commissions crédités au parrain (<strong>{saleToDelete.sponsorPartnerName}</strong>) seront annulés.</p>
+                )}
+                <p className="font-semibold pt-0.5">• Cette opération sera consignée dans le Journal d'Audit administrateur.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                onClick={() => setSaleToDelete(null)}
+                className="flex-1 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-semibold"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleConfirmDeleteSale}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Confirmer la Suppression</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

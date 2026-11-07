@@ -83,6 +83,8 @@ interface AppContextType {
     paymentMethod: PaymentMethod;
     paymentReference?: string;
   }) => Sale;
+  updateSale: (saleId: string, updatedData: Partial<Sale>) => void;
+  deleteSale: (saleId: string) => void;
 
   // Supplier Orders
   supplierOrders: SupplierOrder[];
@@ -525,6 +527,87 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newSale;
   };
 
+  const updateSale = (saleId: string, updatedData: Partial<Sale>) => {
+    const existing = sales.find(s => s.id === saleId);
+    if (!existing) return;
+
+    setSales(prev => prev.map(s => {
+      if (s.id === saleId) {
+        const discountAmount = updatedData.discountAmount !== undefined ? updatedData.discountAmount : s.discountAmount;
+        const totalAmount = updatedData.totalAmount !== undefined ? updatedData.totalAmount : s.totalAmount;
+        const netAmount = Math.max(0, totalAmount - discountAmount);
+
+        return {
+          ...s,
+          ...updatedData,
+          discountAmount,
+          netAmount,
+        };
+      }
+      return s;
+    }));
+
+    // Trace in Audit Log
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Modification de reçu caisse',
+      module: 'Ventes',
+      details: `Mise à jour du reçu ${existing.receiptNumber} : Client: "${updatedData.patientName || existing.patientName}", Mode: ${updatedData.paymentMethod || existing.paymentMethod}, Net: ${(updatedData.netAmount ?? existing.netAmount).toLocaleString('fr-FR')} FCFA`,
+      severity: 'warning',
+    });
+  };
+
+  const deleteSale = (saleId: string) => {
+    const targetSale = sales.find(s => s.id === saleId);
+    if (!targetSale) return;
+
+    // 1. Restock physical products
+    if (targetSale.status !== 'annule') {
+      setProducts(prev => prev.map(prod => {
+        const soldItem = targetSale.items.find(i => i.productId === prod.id);
+        if (soldItem && prod.category !== 'services') {
+          return {
+            ...prod,
+            stockQuantity: prod.stockQuantity + soldItem.quantity,
+          };
+        }
+        return prod;
+      }));
+
+      // 2. Adjust partner MLM earnings and PV if a sponsor was attached
+      if (targetSale.sponsorPartnerId) {
+        setPartners(prev => prev.map(partner => {
+          if (partner.id === targetSale.sponsorPartnerId) {
+            return {
+              ...partner,
+              totalDirectEarnings: Math.max(0, partner.totalDirectEarnings - targetSale.totalPartnerGain),
+              remainingEarnings: Math.max(0, partner.remainingEarnings - targetSale.totalPartnerGain),
+              totalPv: Math.max(0, partner.totalPv - targetSale.totalPv),
+              remainingPv: Math.max(0, partner.remainingPv - targetSale.totalPv),
+            };
+          }
+          return partner;
+        }));
+      }
+    }
+
+    // 3. Remove from sales
+    setSales(prev => prev.filter(s => s.id !== saleId));
+
+    // 4. Trace in Audit Log
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Suppression de reçu caisse',
+      module: 'Ventes',
+      details: `Suppression du reçu ${targetSale.receiptNumber} (${targetSale.netAmount.toLocaleString('fr-FR')} FCFA) pour ${targetSale.patientName}. Rétablissement des stocks et réajustement PV parrain.`,
+      severity: 'danger',
+    });
+  };
+
   // Supplier Orders
   const createSupplierOrder = (orderData: Omit<SupplierOrder, 'id' | 'orderNumber' | 'date'>) => {
     const orderNumber = `BC-${new Date().getFullYear()}-${String(supplierOrders.length + 1).padStart(4, '0')}`;
@@ -809,6 +892,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deleteProduct,
       sales,
       completeSale,
+      updateSale,
+      deleteSale,
       supplierOrders,
       createSupplierOrder,
       updateSupplierOrderStatus,
