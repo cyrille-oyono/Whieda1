@@ -177,7 +177,8 @@ export const PosView: React.FC = () => {
 
 
     if (isPhysical && product.stockQuantity <= currentQtyInCart) {
-      alert(`Stock insuffisant pour ${product.name} (Quantité en stock: ${product.stockQuantity})`);
+      setPdfNotification(`⚠️ Stock insuffisant pour ${product.name} (Stock disponible: ${product.stockQuantity})`);
+      setTimeout(() => setPdfNotification(null), 4000);
       return;
     }
 
@@ -220,7 +221,8 @@ export const PosView: React.FC = () => {
     }
 
     if (prod && prod.category !== 'services' && newQty > prod.stockQuantity) {
-      alert(`Stock maximum atteint (${prod.stockQuantity} disponibles).`);
+      setPdfNotification(`⚠️ Stock maximum atteint (${prod.stockQuantity} disponibles).`);
+      setTimeout(() => setPdfNotification(null), 4000);
       return;
     }
 

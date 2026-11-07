@@ -45,6 +45,8 @@ interface AppContextType {
   // Users (Admin)
   users: User[];
   addUser: (userData: Omit<User, 'id' | 'createdAt'>, initialPassword?: string) => void;
+  updateUser: (userId: string, updatedData: Partial<User>) => void;
+  deleteUser: (userId: string) => { success: boolean; message?: string };
   toggleUserStatus: (userId: string) => void;
 
   // Partners (MLM)
@@ -298,10 +300,103 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setUsers(prev => [newUser, ...prev]);
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Création compte employé',
+      module: 'Sécurité',
+      details: `Création du compte employé pour ${newUser.fullName} (${newUser.email}) - Rôle: ${newUser.role}, Département: ${newUser.department || 'N/A'}`,
+      severity: 'info',
+    });
+  };
+
+  const updateUser = (userId: string, updatedData: Partial<User>) => {
+    const target = users.find(u => u.id === userId);
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        return { ...u, ...updatedData };
+      }
+      return u;
+    }));
+
+    if (currentUser.id === userId) {
+      setCurrentUser(prev => ({ ...prev, ...updatedData }));
+    }
+
+    if (target) {
+      addAuditLog({
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        userRole: currentUser.role,
+        action: 'Modification compte employé',
+        module: 'Sécurité',
+        details: `Mise à jour du profil de l'employé ${target.fullName} (${target.email}) -> Rôle: ${updatedData.role || target.role}, Département: ${updatedData.department || target.department}`,
+        severity: 'warning',
+      });
+    }
+  };
+
+  const deleteUser = (userId: string): { success: boolean; message?: string } => {
+    if (userId === currentUser.id) {
+      return { 
+        success: false, 
+        message: 'Action refusée : Vous ne pouvez pas supprimer votre propre compte actuellement actif.' 
+      };
+    }
+    const target = users.find(u => u.id === userId);
+    if (!target) {
+      return { 
+        success: false, 
+        message: 'Employé introuvable dans la liste.' 
+      };
+    }
+    const activeAdmins = users.filter(u => u.role === 'admin' && u.active);
+    if (target.role === 'admin' && activeAdmins.length <= 1) {
+      return { 
+        success: false, 
+        message: 'Action refusée : Le système doit conserver au moins un administrateur actif pour garantir la gestion.' 
+      };
+    }
+
+    setUsers(prev => prev.filter(u => u.id !== userId));
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Suppression compte employé',
+      module: 'Sécurité',
+      details: `Suppression définitive du compte employé : ${target.fullName} (${target.email}) - Ancien rôle: ${target.role}, Département: ${target.department || 'N/A'}`,
+      severity: 'danger',
+    });
+
+    return { success: true };
   };
 
   const toggleUserStatus = (userId: string) => {
+    const target = users.find(u => u.id === userId);
+    const newStatus = target ? !target.active : false;
+
+    // Protection: cannot deactivate oneself
+    if (userId === currentUser.id) {
+      return;
+    }
+
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, active: !u.active } : u));
+
+    if (target) {
+      addAuditLog({
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        userRole: currentUser.role,
+        action: newStatus ? 'Activation compte employé' : 'Désactivation compte employé',
+        module: 'Sécurité',
+        details: `${newStatus ? 'Activation' : 'Désactivation'} du compte de ${target.fullName} (${target.email})`,
+        severity: newStatus ? 'info' : 'warning',
+      });
+    }
   };
 
   // Partner MLM Functions
@@ -874,6 +969,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatePartnerApplicationStatus,
       users,
       addUser,
+      updateUser,
+      deleteUser,
       toggleUserStatus,
       partners,
       addPartner,

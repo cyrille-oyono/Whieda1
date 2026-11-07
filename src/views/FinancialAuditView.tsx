@@ -99,6 +99,12 @@ export const FinancialAuditView: React.FC<FinancialAuditViewProps> = ({ onNaviga
   });
 
   const [payoutSearch, setPayoutSearch] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   // ==========================================
   // CALCULATIONS & FINANCIAL METRICS
@@ -187,7 +193,7 @@ export const FinancialAuditView: React.FC<FinancialAuditViewProps> = ({ onNaviga
     e.preventDefault();
     const amountNum = parseFloat(expenseForm.amount);
     if (!expenseForm.title.trim() || isNaN(amountNum) || amountNum <= 0) {
-      alert('Veuillez saisir un intitulé valide et un montant supérieur à 0.');
+      showToast('⚠️ Veuillez saisir un intitulé valide et un montant supérieur à 0.');
       return;
     }
 
@@ -198,6 +204,8 @@ export const FinancialAuditView: React.FC<FinancialAuditViewProps> = ({ onNaviga
       amount: amountNum,
       notes: expenseForm.notes.trim() || undefined,
     });
+
+    showToast(`✅ Dépense "${expenseForm.title.trim()}" enregistrée avec succès.`);
 
     // Reset form
     setExpenseForm({
@@ -214,7 +222,7 @@ export const FinancialAuditView: React.FC<FinancialAuditViewProps> = ({ onNaviga
     if (!editingExpense) return;
     const amountNum = Number(editingExpense.amount);
     if (!editingExpense.title.trim() || isNaN(amountNum) || amountNum <= 0) {
-      alert('Veuillez vérifier les informations de la dépense.');
+      showToast('⚠️ Veuillez vérifier les informations de la dépense.');
       return;
     }
 
@@ -226,12 +234,14 @@ export const FinancialAuditView: React.FC<FinancialAuditViewProps> = ({ onNaviga
       notes: editingExpense.notes,
     });
 
+    showToast(`✅ Dépense "${editingExpense.title.trim()}" mise à jour avec succès.`);
     setEditingExpense(null);
   };
 
   const confirmDeleteExpense = () => {
     if (expenseToDelete) {
       deleteExpense(expenseToDelete.id);
+      showToast(`🗑️ Dépense "${expenseToDelete.title}" supprimée.`);
       setExpenseToDelete(null);
     }
   };
@@ -262,7 +272,7 @@ export const FinancialAuditView: React.FC<FinancialAuditViewProps> = ({ onNaviga
     const pvNum = parseFloat(payoutForm.pvPlaced) || 0;
 
     if (isNaN(amountNum) || amountNum <= 0) {
-      alert('Veuillez spécifier un montant valide supérieur à 0 FCFA.');
+      showToast('⚠️ Veuillez spécifier un montant valide supérieur à 0 FCFA.');
       return;
     }
 
@@ -278,6 +288,7 @@ export const FinancialAuditView: React.FC<FinancialAuditViewProps> = ({ onNaviga
       notes: payoutForm.notes.trim() || undefined,
     });
 
+    showToast(`✅ Règlement de ${amountNum.toLocaleString()} FCFA pour ${selectedPartnerObj.firstName} ${selectedPartnerObj.lastName} validé.`);
     setIsPayoutModalOpen(false);
   };
 
@@ -287,6 +298,19 @@ export const FinancialAuditView: React.FC<FinancialAuditViewProps> = ({ onNaviga
 
   return (
     <div className="space-y-6">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-4 right-4 z-50 max-w-md bg-neutral-900/95 text-white p-3.5 rounded-2xl shadow-2xl border border-neutral-700/80 backdrop-blur-md flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4 duration-200">
+          <p className="text-xs font-medium text-neutral-100">{toastMessage}</p>
+          <button 
+            onClick={() => setToastMessage(null)}
+            className="p-1 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-white transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
         <div>
