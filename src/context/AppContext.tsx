@@ -3,14 +3,15 @@ import {
   User, UserRole, Partner, Patient, Visit, ProductService, 
   Sale, SupplierOrder, MedicalRecord, VisitStatus, OrderStatus,
   SaleItem, PaymentMethod, PrescriptionItem, MedicalExamDefinition, ExamParameter,
-  CompanySettings, AppointmentRequest, PartnerApplication
+  CompanySettings, AppointmentRequest, PartnerApplication, AssociatedCenter
 } from '../types';
 
 import { 
   INITIAL_USERS, INITIAL_PARTNERS, INITIAL_PATIENTS, 
   INITIAL_PRODUCTS, INITIAL_VISITS, INITIAL_SALES, 
   INITIAL_ORDERS, INITIAL_RECORDS, INITIAL_EXAM_DEFINITIONS,
-  INITIAL_COMPANY_SETTINGS, INITIAL_APPOINTMENTS, INITIAL_PARTNER_APPLICATIONS
+  INITIAL_COMPANY_SETTINGS, INITIAL_APPOINTMENTS, INITIAL_PARTNER_APPLICATIONS,
+  INITIAL_ASSOCIATED_CENTERS
 } from '../data/mockData';
 
 interface AppContextType {
@@ -23,6 +24,12 @@ interface AppContextType {
   // Company Showcase Settings (Admin)
   companySettings: CompanySettings;
   updateCompanySettings: (settings: Partial<CompanySettings>) => void;
+
+  // Associated Centers (Centres Whieda Associés - Admin réglable)
+  associatedCenters: AssociatedCenter[];
+  addAssociatedCenter: (center: Omit<AssociatedCenter, 'id'>) => void;
+  updateAssociatedCenter: (id: string, center: Partial<AssociatedCenter>) => void;
+  deleteAssociatedCenter: (id: string) => void;
 
   // Showcase Appointments
   appointmentRequests: AppointmentRequest[];
@@ -41,8 +48,10 @@ interface AppContextType {
 
   // Partners (MLM)
   partners: Partner[];
-  addPartner: (partner: Omit<Partner, 'id' | 'totalDirectEarnings' | 'paidEarnings' | 'remainingEarnings' | 'totalPv' | 'placedPv' | 'remainingPv' | 'registeredAt'>) => void;
-  settlePartnerPayout: (partnerId: string, amount: number, paymentMethod: string, notes?: string) => void;
+  addPartner: (partner: Omit<Partner, 'id' | 'totalDirectEarnings' | 'paidEarnings' | 'remainingEarnings' | 'totalPv' | 'placedPv' | 'remainingPv' | 'registeredAt'> & { initialPv?: number; cardStatus?: any; qualificationStatus?: any }) => void;
+  updatePartner: (partnerId: string, data: Partial<Partner>) => void;
+  deletePartner: (partnerId: string) => void;
+  settlePartnerPayout: (partnerId: string, amount: number, paymentMethod?: string, notes?: string) => void;
   placePartnerPv: (partnerId: string, pvAmount: number) => void;
 
   // Patients / Clients
@@ -158,6 +167,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_PARTNER_APPLICATIONS;
   });
 
+  const [associatedCenters, setAssociatedCenters] = useState<AssociatedCenter[]>(() => {
+    const saved = localStorage.getItem('whieda_associated_centers');
+    return saved ? JSON.parse(saved) : INITIAL_ASSOCIATED_CENTERS;
+  });
+
   // Save to localStorage on changes
   useEffect(() => {
     localStorage.setItem('whieda_users', JSON.stringify(users));
@@ -198,6 +212,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('whieda_partner_applications', JSON.stringify(partnerApplications));
   }, [partnerApplications]);
+  useEffect(() => {
+    localStorage.setItem('whieda_associated_centers', JSON.stringify(associatedCenters));
+  }, [associatedCenters]);
 
   // Auth helpers
   const switchRole = (role: UserRole) => {
@@ -234,7 +251,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Partner MLM Functions
-  const addPartner = (data: Omit<Partner, 'id' | 'totalDirectEarnings' | 'paidEarnings' | 'remainingEarnings' | 'totalPv' | 'placedPv' | 'remainingPv' | 'registeredAt'> & { cardStatus?: any; qualificationStatus?: any }) => {
+  const addPartner = (data: Omit<Partner, 'id' | 'totalDirectEarnings' | 'paidEarnings' | 'remainingEarnings' | 'totalPv' | 'placedPv' | 'remainingPv' | 'registeredAt'> & { initialPv?: number; cardStatus?: any; qualificationStatus?: any }) => {
+    const initPv = Number(data.initialPv) || 0;
     const newPartner: Partner = {
       ...data,
       id: `ptn-${Date.now()}`,
@@ -243,12 +261,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalDirectEarnings: 0,
       paidEarnings: 0,
       remainingEarnings: 0,
-      totalPv: 0,
+      totalPv: initPv,
       placedPv: 0,
-      remainingPv: 0,
+      remainingPv: initPv,
       registeredAt: new Date().toISOString().split('T')[0],
     };
     setPartners(prev => [newPartner, ...prev]);
+  };
+
+  const updatePartner = (partnerId: string, data: Partial<Partner>) => {
+    setPartners(prev => prev.map(p => {
+      if (p.id === partnerId) {
+        return { ...p, ...data };
+      }
+      return p;
+    }));
+  };
+
+  const deletePartner = (partnerId: string) => {
+    setPartners(prev => prev.filter(p => p.id !== partnerId));
   };
 
   const settlePartnerPayout = (partnerId: string, amount: number) => {
@@ -538,6 +569,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPartnerApplications(prev => prev.map(app => app.id === id ? { ...app, status } : app));
   };
 
+  // Associated Centers (Centres Whieda Associés)
+  const addAssociatedCenter = (data: Omit<AssociatedCenter, 'id'>) => {
+    const newCenter: AssociatedCenter = {
+      ...data,
+      id: `ctr-${Date.now()}`,
+    };
+    setAssociatedCenters(prev => [...prev, newCenter]);
+  };
+
+  const updateAssociatedCenter = (id: string, data: Partial<AssociatedCenter>) => {
+    setAssociatedCenters(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
+  };
+
+  const deleteAssociatedCenter = (id: string) => {
+    setAssociatedCenters(prev => prev.filter(c => c.id !== id));
+  };
+
   return (
     <AppContext.Provider value={{
       currentUser,
@@ -547,6 +595,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       loginAs,
       companySettings,
       updateCompanySettings,
+      associatedCenters,
+      addAssociatedCenter,
+      updateAssociatedCenter,
+      deleteAssociatedCenter,
       appointmentRequests,
       addAppointmentRequest,
       updateAppointmentStatus,
@@ -558,6 +610,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toggleUserStatus,
       partners,
       addPartner,
+      updatePartner,
+      deletePartner,
       settlePartnerPayout,
       placePartnerPv,
       patients,

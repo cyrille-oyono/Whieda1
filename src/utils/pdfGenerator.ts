@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { Sale, CompanySettings, Partner } from '../types';
+import { Sale, CompanySettings, Partner, Visit } from '../types';
 import { formatMoney, formatPV } from './formatters';
 
 export const generateInvoicePDF = (sale: Sale, companySettings?: CompanySettings): void => {
@@ -1150,5 +1150,271 @@ export const generatePartnerSheetPDF = (partner: Partner, downlines: Partner[], 
   doc.text('Délivrée pour servir et valoir ce que de droit.', pageWidth - margin, currentY + 12, { align: 'right' });
 
   doc.save(`Fiche_Partenaire_${partner.code}.pdf`);
+};
+
+// ============================================================================
+// 4. RÉCAPITULATIF DES PATIENTS & CLIENTS REÇUS (FORMAT PAYSAGE A4)
+// ============================================================================
+export const generatePatientsVisitsReportPDF = (
+  visits: Visit[],
+  month: string,
+  year: string,
+  companySettings?: CompanySettings
+): void => {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth(); // 297mm
+  const pageHeight = doc.internal.pageSize.getHeight(); // 210mm
+  const margin = 14;
+  let currentY = 14;
+
+  const monthNames: Record<string, string> = {
+    '01': 'Janvier',
+    '02': 'Février',
+    '03': 'Mars',
+    '04': 'Avril',
+    '05': 'Mai',
+    '06': 'Juin',
+    '07': 'Juillet',
+    '08': 'Août',
+    '09': 'Septembre',
+    '10': 'Octobre',
+    '11': 'Novembre',
+    '12': 'Décembre',
+    'all': 'Année Complète',
+  };
+
+  const periodLabel = month === 'all' 
+    ? `Exercice Annuel ${year}` 
+    : `Mois de ${monthNames[month] || month} ${year}`;
+
+  // Top Accent Bar
+  doc.setFillColor(220, 38, 38);
+  doc.rect(margin, currentY, pageWidth - (margin * 2), 2.5, 'F');
+  currentY += 7;
+
+  // Header Title & Brand
+  const compName = companySettings?.name || 'WHIEDA SMART';
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(220, 38, 38);
+  doc.text(compName, margin, currentY);
+
+  doc.setFontSize(13);
+  doc.setTextColor(15, 23, 42);
+  doc.text('RÉCAPITULATIF OFFICIEL DES PATIENTS & CLIENTS REÇUS', pageWidth - margin, currentY, { align: 'right' });
+  currentY += 5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Registre d\'Accueil, Traçabilité des Soins & Rattachement Parrainage MLM', margin, currentY);
+  
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(234, 88, 12);
+  doc.text(`Période sélectionnée : ${periodLabel}`, pageWidth - margin, currentY, { align: 'right' });
+  currentY += 7;
+
+  // Divider
+  doc.setDrawColor(226, 232, 240);
+  doc.line(margin, currentY, pageWidth - margin, currentY);
+  currentY += 5;
+
+  // Synthesis Cards (Total, Services, Parrains)
+  const totalReceived = visits.length;
+  const countAchat = visits.filter(v => v.purpose?.toLowerCase().includes('achat')).length;
+  const countMassage = visits.filter(v => v.purpose?.toLowerCase().includes('massage')).length;
+  const countBilan = visits.filter(v => v.purpose?.toLowerCase().includes('bilan') || v.purpose?.toLowerCase().includes('consultation')).length;
+  const countFormation = visits.filter(v => v.purpose?.toLowerCase().includes('formation')).length;
+  const countVisite = visits.filter(v => v.purpose?.toLowerCase().includes('visite')).length;
+  const countWithSponsor = visits.filter(v => !!v.sponsorPartnerName).length;
+
+  const cardW = (pageWidth - (margin * 2) - 8) / 3;
+  const cardH = 20;
+
+  // Card 1
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(margin, currentY, cardW, cardH, 2, 2, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, currentY, cardW, cardH, 2, 2, 'S');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('TOTAL VISITEURS REÇUS', margin + 3.5, currentY + 5);
+  doc.setFontSize(13);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`${totalReceived} personnes`, margin + 3.5, currentY + 12);
+  doc.setFontSize(7.5);
+  doc.setTextColor(16, 185, 129);
+  doc.text(`${countWithSponsor} rattachés à un Parrain MLM (${totalReceived > 0 ? ((countWithSponsor / totalReceived) * 100).toFixed(0) : 0}%)`, margin + 3.5, currentY + 17);
+
+  // Card 2
+  const card2X = margin + cardW + 4;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(card2X, currentY, cardW, cardH, 2, 2, 'F');
+  doc.roundedRect(card2X, currentY, cardW, cardH, 2, 2, 'S');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('RÉPARTITION DES SERVICES', card2X + 3.5, currentY + 5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`• Bilan de santé : ${countBilan}   • Massage : ${countMassage}`, card2X + 3.5, currentY + 11);
+  doc.text(`• Achat produit : ${countAchat}   • Formation / Visite : ${countFormation + countVisite}`, card2X + 3.5, currentY + 16);
+
+  // Card 3
+  const card3X = card2X + cardW + 4;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(card3X, currentY, cardW, cardH, 2, 2, 'F');
+  doc.roundedRect(card3X, currentY, cardW, cardH, 2, 2, 'S');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('CONFORMITÉ & VALIDATION ACCUEIL', card3X + 3.5, currentY + 5);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Édité le ${new Date().toLocaleDateString('fr-FR')} par le Secrétariat Accueil`, card3X + 3.5, currentY + 11);
+  doc.text('Certifié conforme aux registres physiques et numériques', card3X + 3.5, currentY + 16);
+
+  currentY += cardH + 6;
+
+  // Table Columns
+  const cols = [
+    { header: 'N°', x: margin + 2, w: 10, align: 'left' },
+    { header: 'Date & Heure', x: margin + 12, w: 32, align: 'left' },
+    { header: 'Nom & Prénom Visiteur', x: margin + 44, w: 52, align: 'left' },
+    { header: 'Téléphone', x: margin + 96, w: 32, align: 'left' },
+    { header: 'Adresse / Quartier', x: margin + 128, w: 42, align: 'left' },
+    { header: 'Service Sollicité', x: margin + 170, w: 44, align: 'left' },
+    { header: 'Parrain Up (MLM)', x: margin + 214, w: 40, align: 'left' },
+    { header: 'Statut', x: pageWidth - margin - 2, w: 15, align: 'right' },
+  ];
+
+  // Header row
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin, currentY, pageWidth - (margin * 2), 6.5, 'F');
+  doc.setDrawColor(203, 213, 225);
+  doc.line(margin, currentY + 6.5, pageWidth - margin, currentY + 6.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(51, 65, 85);
+  cols.forEach(col => {
+    if (col.align === 'right') {
+      doc.text(col.header, col.x, currentY + 4.5, { align: 'right' });
+    } else {
+      doc.text(col.header, col.x, currentY + 4.5);
+    }
+  });
+
+  currentY += 6.5;
+
+  if (visits.length === 0) {
+    doc.setFillColor(255, 255, 255);
+    doc.rect(margin, currentY, pageWidth - (margin * 2), 12, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Aucun patient ou visiteur enregistré pour cette période.', pageWidth / 2, currentY + 7.5, { align: 'center' });
+    currentY += 14;
+  } else {
+    visits.forEach((v, idx) => {
+      if (currentY > pageHeight - 20) {
+        doc.addPage();
+        currentY = 15;
+
+        // Re-draw table header
+        doc.setFillColor(241, 245, 249);
+        doc.rect(margin, currentY, pageWidth - (margin * 2), 6.5, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(51, 65, 85);
+        cols.forEach(col => {
+          if (col.align === 'right') {
+            doc.text(col.header, col.x, currentY + 4.5, { align: 'right' });
+          } else {
+            doc.text(col.header, col.x, currentY + 4.5);
+          }
+        });
+        currentY += 6.5;
+      }
+
+      const isEven = idx % 2 === 0;
+      doc.setFillColor(isEven ? 255 : 248, isEven ? 255 : 250, isEven ? 255 : 252);
+      doc.rect(margin, currentY, pageWidth - (margin * 2), 6.2, 'F');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(String(idx + 1), cols[0].x, currentY + 4.3);
+
+      doc.setFont('courier', 'normal');
+      doc.text(`${v.date} ${v.time}`, cols[1].x, currentY + 4.3);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      const name = v.visitorName.length > 28 ? v.visitorName.slice(0, 26) + '...' : v.visitorName;
+      doc.text(name, cols[2].x, currentY + 4.3);
+
+      doc.setFont('courier', 'normal');
+      doc.setTextColor(51, 65, 85);
+      doc.text(v.visitorPhone || '---', cols[3].x, currentY + 4.3);
+
+      doc.setFont('helvetica', 'normal');
+      const address = (v.visitorAddress || 'Douala').length > 22 ? (v.visitorAddress || 'Douala').slice(0, 20) + '...' : (v.visitorAddress || 'Douala');
+      doc.text(address, cols[4].x, currentY + 4.3);
+
+      // Service sollicite
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(234, 88, 12);
+      const service = (v.requestedService || v.purpose).length > 24 ? (v.requestedService || v.purpose).slice(0, 22) + '...' : (v.requestedService || v.purpose);
+      doc.text(service, cols[5].x, currentY + 4.3);
+
+      // Parrain Up
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(15, 23, 42);
+      const sponsorStr = v.sponsorPartnerName ? `${v.sponsorPartnerName} (${v.sponsorPartnerCode || ''})` : 'Interne';
+      const truncatedSponsor = sponsorStr.length > 24 ? sponsorStr.slice(0, 22) + '...' : sponsorStr;
+      doc.text(truncatedSponsor, cols[6].x, currentY + 4.3);
+
+      // Statut
+      const statusLabel = v.status === 'termine' ? 'Terminé' : v.status === 'en_consultation' ? 'En cours' : 'En attente';
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(v.status === 'termine' ? 16 : v.status === 'en_consultation' ? 234 : 100, v.status === 'termine' ? 185 : v.status === 'en_consultation' ? 88 : 116, v.status === 'termine' ? 129 : v.status === 'en_consultation' ? 12 : 139);
+      doc.text(statusLabel, cols[7].x, currentY + 4.3, { align: 'right' });
+
+      doc.setDrawColor(241, 245, 249);
+      doc.line(margin, currentY + 6.2, pageWidth - margin, currentY + 6.2);
+      currentY += 6.2;
+    });
+  }
+
+  currentY += 8;
+
+  // Signatures on Bottom
+  if (currentY > pageHeight - 25) {
+    doc.addPage();
+    currentY = 20;
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Le Responsable Accueil & Réception', margin + 15, currentY);
+  doc.text('La Direction Générale Whieda Smart', pageWidth - margin - 75, currentY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text('[Visa & Cachet du Poste d\'Accueil]', margin + 15, currentY + 5);
+  doc.text('[Visa & Cachet Officiel]', pageWidth - margin - 75, currentY + 5);
+
+  const cleanMonth = month.padStart(2, '0');
+  doc.save(`Recapitulatif_Patients_Whieda_${year}_${cleanMonth}.pdf`);
 };
 

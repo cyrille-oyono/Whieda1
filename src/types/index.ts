@@ -20,6 +20,23 @@ export interface CompanySettings {
   heroHeadline: string;
   heroSubheadline: string;
   heroImageUrl?: string;
+  // Réseaux Sociaux
+  whatsappPhone?: string;
+  whatsappLink?: string;
+  facebookUrl?: string;
+  tiktokUrl?: string;
+}
+
+export interface AssociatedCenter {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  manager: string; // Responsable
+  city: string;
+  workingHours?: string;
+  email?: string;
+  status?: 'actif' | 'en_ouverture';
 }
 
 export interface AppointmentRequest {
@@ -63,6 +80,33 @@ export interface User {
 export type PartnerCardStatus = 'Start' | 'Standard' | 'Premium' | 'VIP';
 export type PartnerQualification = 'Qualifié' | 'Non qualifié';
 
+export type PartnerGrade = 
+  | 'Directeur'
+  | 'Directeur Régional'
+  | 'Directeur National'
+  | 'Directeur Continental'
+  | 'Ambassadeur'
+  | 'Diamant 7'
+  | 'Diamant 3'
+  | 'Diamant 1'
+  | 'Diamant'
+  | 'Émeraude'
+  | 'Ruby';
+
+export const PARTNER_GRADES: PartnerGrade[] = [
+  'Directeur',
+  'Directeur Régional',
+  'Directeur National',
+  'Directeur Continental',
+  'Ambassadeur',
+  'Diamant 7',
+  'Diamant 3',
+  'Diamant 1',
+  'Diamant',
+  'Émeraude',
+  'Ruby'
+];
+
 export interface Partner {
   id: string;
   code: string; // e.g. WH-PTN-101
@@ -82,11 +126,26 @@ export interface Partner {
   totalPv: number; // Total Points de Valeur
   placedPv: number; // PV placés
   remainingPv: number; // PV restants
-  level: string; // ex: 'Bronze', 'Argent', 'Or', 'Diamant'
+  level: PartnerGrade | string; // ex: 'Directeur', 'Ambassadeur', 'Diamant 7', 'Ruby'
   registeredAt: string; // Date d'entrée
 }
 
 export type VisitorType = 'patient' | 'client' | 'staff';
+
+export type RequestedService = 
+  | 'Achat produit'
+  | 'Massage'
+  | 'Bilan de santé'
+  | 'Formation'
+  | 'Simple visite';
+
+export const REQUESTED_SERVICES: RequestedService[] = [
+  'Achat produit',
+  'Massage',
+  'Bilan de santé',
+  'Formation',
+  'Simple visite'
+];
 
 export interface Patient {
   id: string;
@@ -110,11 +169,13 @@ export interface Visit {
   time: string; // HH:mm
   visitorName: string;
   visitorPhone?: string;
+  visitorAddress?: string; // Adresse du patient / visiteur
   visitorType: VisitorType;
   sponsorPartnerId?: string;
   sponsorPartnerName?: string;
   sponsorPartnerCode?: string;
-  purpose: string; // ex: 'Achat Boutique', 'Consultation Dr Kamga', 'Retrait Pharmacie', 'Prise de poste'
+  purpose: string; // Service sollicité (Achat produit, Massage, Bilan de santé, Formation, Simple visite)
+  requestedService?: RequestedService | string;
   registeredBy: string; // Nom du réceptionniste
   status: VisitStatus;
   notes?: string;

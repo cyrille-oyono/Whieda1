@@ -1,6 +1,6 @@
 import { 
   User, Partner, Patient, Visit, ProductService, Sale, SupplierOrder, 
-  MedicalRecord, MedicalExamDefinition, CompanySettings, AppointmentRequest, PartnerApplication 
+  MedicalRecord, MedicalExamDefinition, CompanySettings, AppointmentRequest, PartnerApplication, AssociatedCenter 
 } from '../types';
 
 export const INITIAL_COMPANY_SETTINGS: CompanySettings = {
@@ -17,7 +17,69 @@ export const INITIAL_COMPANY_SETTINGS: CompanySettings = {
   heroHeadline: 'Votre Santé Holistique, Votre Pharmacie Verte & Votre Réseau de Réussite',
   heroSubheadline: "Accédez à des soins médicaux personnalisés, des bilans de santé innovants, notre gamme exclusive de phytothérapie certifiée et rejoignez notre communauté de partenaires MLM.",
   heroImageUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&auto=format&fit=crop&q=80',
+  whatsappPhone: '+237699001122',
+  whatsappLink: 'https://wa.me/237699001122?text=Bonjour%20Whieda%20Smart%2C%20je%20souhaite%20en%20savoir%20plus%20sur%20vos%20soins%20et%20produits.',
+  facebookUrl: 'https://facebook.com/whiedasmart.officiel',
+  tiktokUrl: 'https://tiktok.com/@whiedasmart.sante',
 };
+
+export const INITIAL_ASSOCIATED_CENTERS: AssociatedCenter[] = [
+  {
+    id: 'ctr-1',
+    name: 'Centre Whieda Smart Akwa (Siège National)',
+    address: 'Boulevard de la Liberté, Face Ancien Cinéma Le Wouri, Akwa',
+    city: 'Douala',
+    phone: '+237 699 00 11 22',
+    manager: 'Dr. Kamga Jean-Paul (Directeur Médical)',
+    workingHours: 'Lun - Ven: 08h00 - 18h30 | Sam: 08h30 - 15h00',
+    email: 'direction@whiedasmart.com',
+    status: 'actif',
+  },
+  {
+    id: 'ctr-2',
+    name: 'Centre Whieda Santé Bastos',
+    address: 'Avenue Rosa Parks, Derrière Ambassade de Belgique, Bastos',
+    city: 'Yaoundé',
+    phone: '+237 677 22 33 44',
+    manager: 'Mme Bella Christine (Directrice Régionale)',
+    workingHours: 'Lun - Sam: 08h00 - 18h00',
+    email: 'bastos@whiedasmart.com',
+    status: 'actif',
+  },
+  {
+    id: 'ctr-3',
+    name: 'Centre Whieda Bio-Pharma Bafoussam',
+    address: 'Carrefour Total, Immeuble de l’Ouest 2ème étage',
+    city: 'Bafoussam',
+    phone: '+237 695 55 44 33',
+    manager: 'Mme Mireille Fotso (Responsable d’Exploitation)',
+    workingHours: 'Lun - Sam: 08h30 - 17h30',
+    email: 'bafoussam@whiedasmart.com',
+    status: 'actif',
+  },
+  {
+    id: 'ctr-4',
+    name: 'Centre Whieda Océan Kribi',
+    address: 'Boulevard du Général de Gaulle, Face Port Autonome',
+    city: 'Kribi',
+    phone: '+237 680 11 22 99',
+    manager: 'Dr. Alain Mbarga (Médecin Référent)',
+    workingHours: 'Lun - Ven: 08h00 - 17h00 | Sam: 08h00 - 13h00',
+    email: 'kribi@whiedasmart.com',
+    status: 'actif',
+  },
+  {
+    id: 'ctr-5',
+    name: 'Centre Whieda Grand-Nord Garoua',
+    address: 'Quartier Marouaré, Avenue des Banques',
+    city: 'Garoua',
+    phone: '+237 690 44 88 11',
+    manager: 'M. Ibrahim Traoré (Ambassadeur Réseau)',
+    workingHours: 'Lun - Sam: 08h00 - 17h00',
+    email: 'garoua@whiedasmart.com',
+    status: 'en_ouverture',
+  },
+];
 
 export const INITIAL_APPOINTMENTS: AppointmentRequest[] = [
   {

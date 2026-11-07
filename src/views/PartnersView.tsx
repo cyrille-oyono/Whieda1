@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Partner, PartnerCardStatus, PartnerQualification } from '../types';
+import { Partner, PartnerCardStatus, PartnerQualification, PartnerGrade, PARTNER_GRADES } from '../types';
 import { formatMoney, formatPV } from '../utils/formatters';
 import { 
   Users, 
@@ -31,7 +31,10 @@ import {
   RotateCcw,
   Network,
   Eye,
-  CheckCircle2
+  CheckCircle2,
+  Pencil,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   generateGlobalAdminReportPDF, 
@@ -40,7 +43,7 @@ import {
 } from '../utils/pdfGenerator';
 
 export const PartnersView: React.FC = () => {
-  const { partners, addPartner, settlePartnerPayout, placePartnerPv, companySettings } = useApp();
+  const { partners, addPartner, updatePartner, deletePartner, settlePartnerPayout, placePartnerPv, companySettings, currentUser } = useApp();
 
   // Sub-tabs: 'table' (Tableau 10 colonnes) or 'tree' (Arbre généalogique)
   const [activeTab, setActiveTab] = useState<'table' | 'tree'>('table');
@@ -55,6 +58,10 @@ export const PartnersView: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedPartnerForPayout, setSelectedPartnerForPayout] = useState<Partner | null>(null);
   const [selectedPartnerForPlacement, setSelectedPartnerForPlacement] = useState<Partner | null>(null);
+  
+  // Edit & Delete partner modals
+  const [partnerToEdit, setPartnerToEdit] = useState<Partner | null>(null);
+  const [partnerToDelete, setPartnerToDelete] = useState<Partner | null>(null);
   
   // Print & PDF Modals
   const [isGlobalReportModalOpen, setIsGlobalReportModalOpen] = useState(false);
@@ -71,9 +78,27 @@ export const PartnersView: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [sponsorId, setSponsorId] = useState('');
-  const [level, setLevel] = useState('Bronze');
+  const [level, setLevel] = useState<string>('Directeur');
+  const [initialPv, setInitialPv] = useState<number>(500);
   const [cardStatus, setCardStatus] = useState<PartnerCardStatus>('Start');
   const [qualificationStatus, setQualificationStatus] = useState<PartnerQualification>('Qualifié');
+
+  // Edit Partner Form State
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editCode, setEditCode] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editSponsorId, setEditSponsorId] = useState('');
+  const [editLevel, setEditLevel] = useState<string>('Directeur');
+  const [editCardStatus, setEditCardStatus] = useState<PartnerCardStatus>('Start');
+  const [editQualificationStatus, setEditQualificationStatus] = useState<PartnerQualification>('Qualifié');
+  const [editTotalPv, setEditTotalPv] = useState<number>(500);
+  const [editPlacedPv, setEditPlacedPv] = useState<number>(0);
+  const [editRemainingPv, setEditRemainingPv] = useState<number>(500);
+  const [editTotalDirectEarnings, setEditTotalDirectEarnings] = useState<number>(0);
+  const [editPaidEarnings, setEditPaidEarnings] = useState<number>(0);
+  const [editRemainingEarnings, setEditRemainingEarnings] = useState<number>(0);
 
   // Payout Modal State
   const [payoutAmount, setPayoutAmount] = useState<number>(0);
@@ -109,7 +134,8 @@ export const PartnersView: React.FC = () => {
     setPhone('');
     setEmail('');
     setSponsorId('');
-    setLevel('Bronze');
+    setLevel('Directeur');
+    setInitialPv(500);
     setCardStatus('Start');
     setQualificationStatus('Qualifié');
     setIsAddModalOpen(true);
@@ -128,10 +154,72 @@ export const PartnersView: React.FC = () => {
       sponsorName: sponsor ? `${sponsor.firstName} ${sponsor.lastName}` : undefined,
       sponsorCode: sponsor?.code,
       level,
+      initialPv: Number(initialPv) || 0,
       cardStatus,
       qualificationStatus,
     });
     setIsAddModalOpen(false);
+    setPdfNotification(`Nouveau partenaire ${firstName} ${lastName} enregistré avec succès.`);
+    setTimeout(() => setPdfNotification(null), 4000);
+  };
+
+  const handleOpenEdit = (p: Partner) => {
+    setPartnerToEdit(p);
+    setEditFirstName(p.firstName);
+    setEditLastName(p.lastName);
+    setEditCode(p.code);
+    setEditPhone(p.phone);
+    setEditEmail(p.email || '');
+    setEditSponsorId(p.sponsorId || '');
+    setEditLevel(p.level || 'Directeur');
+    setEditCardStatus(p.cardStatus || 'Start');
+    setEditQualificationStatus(p.qualificationStatus || 'Qualifié');
+    setEditTotalPv(p.totalPv);
+    setEditPlacedPv(p.placedPv);
+    setEditRemainingPv(p.remainingPv);
+    setEditTotalDirectEarnings(p.totalDirectEarnings);
+    setEditPaidEarnings(p.paidEarnings);
+    setEditRemainingEarnings(p.remainingEarnings);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!partnerToEdit) return;
+    const sponsor = partners.find(p => p.id === editSponsorId);
+    updatePartner(partnerToEdit.id, {
+      firstName: editFirstName,
+      lastName: editLastName,
+      code: editCode,
+      phone: editPhone,
+      email: editEmail,
+      sponsorId: sponsor?.id || undefined,
+      sponsorName: sponsor ? `${sponsor.firstName} ${sponsor.lastName}` : undefined,
+      sponsorCode: sponsor?.code || undefined,
+      level: editLevel,
+      cardStatus: editCardStatus,
+      qualificationStatus: editQualificationStatus,
+      totalPv: Number(editTotalPv) || 0,
+      placedPv: Number(editPlacedPv) || 0,
+      remainingPv: Number(editRemainingPv) || 0,
+      totalDirectEarnings: Number(editTotalDirectEarnings) || 0,
+      paidEarnings: Number(editPaidEarnings) || 0,
+      remainingEarnings: Number(editRemainingEarnings) || 0,
+    });
+    setPartnerToEdit(null);
+    setPdfNotification(`Informations du partenaire ${editFirstName} ${editLastName} mises à jour avec succès.`);
+    setTimeout(() => setPdfNotification(null), 4000);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!partnerToDelete) return;
+    const name = `${partnerToDelete.firstName} ${partnerToDelete.lastName}`;
+    deletePartner(partnerToDelete.id);
+    if (inspectedPartnerId === partnerToDelete.id) {
+      setInspectedPartnerId(partners.find(p => p.id !== partnerToDelete.id)?.id || '');
+    }
+    setPartnerToDelete(null);
+    setPdfNotification(`Partenaire ${name} supprimé avec succès.`);
+    setTimeout(() => setPdfNotification(null), 4000);
   };
 
   const handleOpenPayout = (p: Partner) => {
@@ -520,6 +608,26 @@ export const PartnersView: React.FC = () => {
                               title="Placer des PV dans l'arbre"
                             >
                               Placer
+                            </button>
+
+                            {/* Modifier */}
+                            <button
+                              onClick={() => handleOpenEdit(p)}
+                              className="px-2 py-1 text-xs font-semibold rounded-lg transition-all bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 inline-flex items-center gap-1"
+                              title="Modifier les informations du partenaire"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              <span>Modifier</span>
+                            </button>
+
+                            {/* Supprimer */}
+                            <button
+                              onClick={() => setPartnerToDelete(p)}
+                              className="px-2 py-1 text-xs font-semibold rounded-lg transition-all bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 inline-flex items-center gap-1"
+                              title="Supprimer ce partenaire"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Suppr.</span>
                             </button>
                           </div>
                         </td>
@@ -927,6 +1035,24 @@ export const PartnersView: React.FC = () => {
                           >
                             <DollarSign className="w-3.5 h-3.5" />
                             <span>Régler</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenEdit(inspectedPartner)}
+                            className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all"
+                            title="Modifier les informations"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            <span>Modifier</span>
+                          </button>
+
+                          <button
+                            onClick={() => setPartnerToDelete(inspectedPartner)}
+                            className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all"
+                            title="Supprimer ce partenaire"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Supprimer</span>
                           </button>
                         </div>
                       </div>
@@ -1859,6 +1985,38 @@ export const PartnersView: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Grade du Partenaire *
+                  </label>
+                  <select
+                    value={level}
+                    onChange={e => setLevel(e.target.value)}
+                    className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-semibold"
+                  >
+                    {PARTNER_GRADES.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Nombre de PV Initial *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    step={10}
+                    placeholder="ex: 500 ou 250"
+                    value={initialPv}
+                    onChange={e => setInitialPv(Number(e.target.value))}
+                    className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1">
                   Parrain (Partenaire Up-Line)
@@ -2064,6 +2222,334 @@ export const PartnersView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 7: MODIFIER LES INFORMATIONS DU PARTENAIRE                      */}
+      {/* ===================================================================== */}
+      {partnerToEdit && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-xl w-full border border-neutral-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 my-8">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 bg-neutral-50">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-blue-600" />
+                <h3 className="text-sm font-bold text-neutral-900">
+                  Modifier les Informations du Partenaire ({partnerToEdit.code})
+                </h3>
+              </div>
+              <button onClick={() => setPartnerToEdit(null)} className="p-1 text-neutral-400 hover:text-neutral-700">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Prénom *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editFirstName}
+                    onChange={e => setEditFirstName(e.target.value)}
+                    className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Nom de Famille *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editLastName}
+                    onChange={e => setEditLastName(e.target.value)}
+                    className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Code Unique (ID) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editCode}
+                    onChange={e => setEditCode(e.target.value)}
+                    className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Téléphone *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editPhone}
+                    onChange={e => setEditPhone(e.target.value)}
+                    className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={e => setEditEmail(e.target.value)}
+                  className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Grade Réseau *
+                  </label>
+                  <select
+                    value={editLevel}
+                    onChange={e => setEditLevel(e.target.value)}
+                    className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                  >
+                    {PARTNER_GRADES.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Statut Carte *
+                  </label>
+                  <select
+                    value={editCardStatus}
+                    onChange={e => setEditCardStatus(e.target.value as PartnerCardStatus)}
+                    className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Start">Start</option>
+                    <option value="Standard">Standard</option>
+                    <option value="Premium">Premium</option>
+                    <option value="VIP">VIP</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Qualification *
+                  </label>
+                  <select
+                    value={editQualificationStatus}
+                    onChange={e => setEditQualificationStatus(e.target.value as PartnerQualification)}
+                    className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Qualifié">Qualifié</option>
+                    <option value="Non qualifié">Non qualifié</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Parrain Up (Rattachement Arborescence)
+                </label>
+                <select
+                  value={editSponsorId}
+                  onChange={e => setEditSponsorId(e.target.value)}
+                  className="w-full text-xs p-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Aucun (Tête de Réseau) --</option>
+                  {partners
+                    .filter(p => p.id !== partnerToEdit.id)
+                    .map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.firstName} {p.lastName} ({p.code}) - {p.cardStatus || p.level}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Paramétrage des Points de Valeur (PV) */}
+              <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
+                <div className="font-bold text-xs text-amber-900 flex items-center justify-between">
+                  <span>Gestion des Points de Valeur (PV)</span>
+                  <span className="text-[10px] text-amber-700 font-mono">Administration</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-600 mb-0.5">PV Total</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editTotalPv}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setEditTotalPv(val);
+                        setEditRemainingPv(Math.max(0, val - editPlacedPv));
+                      }}
+                      className="w-full text-xs p-2 border border-amber-300 rounded-lg bg-white font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-600 mb-0.5">PV Placés</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editPlacedPv}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setEditPlacedPv(val);
+                        setEditRemainingPv(Math.max(0, editTotalPv - val));
+                      }}
+                      className="w-full text-xs p-2 border border-amber-300 rounded-lg bg-white font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-600 mb-0.5">PV Restants</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editRemainingPv}
+                      onChange={e => setEditRemainingPv(Number(e.target.value))}
+                      className="w-full text-xs p-2 border border-amber-300 rounded-lg bg-white font-mono font-bold text-amber-800"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Paramétrage des Gains Financiers */}
+              <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-2">
+                <div className="font-bold text-xs text-emerald-900 flex items-center justify-between">
+                  <span>Gestion des Gains et Commissions (FCFA)</span>
+                  <span className="text-[10px] text-emerald-700 font-mono">Comptabilité</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-600 mb-0.5">Gains Totaux</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editTotalDirectEarnings}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setEditTotalDirectEarnings(val);
+                        setEditRemainingEarnings(Math.max(0, val - editPaidEarnings));
+                      }}
+                      className="w-full text-xs p-2 border border-emerald-300 rounded-lg bg-white font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-600 mb-0.5">Gains Payés</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editPaidEarnings}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setEditPaidEarnings(val);
+                        setEditRemainingEarnings(Math.max(0, editTotalDirectEarnings - val));
+                      }}
+                      className="w-full text-xs p-2 border border-emerald-300 rounded-lg bg-white font-mono text-emerald-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-neutral-600 mb-0.5">Reste à Payer</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editRemainingEarnings}
+                      onChange={e => setEditRemainingEarnings(Number(e.target.value))}
+                      className="w-full text-xs p-2 border border-emerald-300 rounded-lg bg-white font-mono font-bold text-red-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setPartnerToEdit(null)}
+                  className="px-4 py-2 text-xs font-medium text-neutral-600 hover:text-neutral-900"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Enregistrer les Modifications</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 8: CONFIRMATION DE SUPPRESSION PARTENAIRE                      */}
+      {/* ===================================================================== */}
+      {partnerToDelete && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-red-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-7 h-7" />
+              </div>
+
+              <div>
+                <h3 className="text-base font-bold text-neutral-900">
+                  Supprimer ce Partenaire ?
+                </h3>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Êtes-vous sûr de vouloir supprimer définitivement le partenaire{' '}
+                  <strong className="text-neutral-900">
+                    {partnerToDelete.firstName} {partnerToDelete.lastName} ({partnerToDelete.code})
+                  </strong>{' '}
+                  du réseau ?
+                </p>
+              </div>
+
+              <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-200 text-xs text-left space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Grade & Carte :</span>
+                  <span className="font-semibold">{partnerToDelete.level} · {partnerToDelete.cardStatus || 'Start'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Points de Valeur :</span>
+                  <span className="font-mono font-bold text-amber-700">{partnerToDelete.totalPv} PV</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Gains restants dus :</span>
+                  <span className="font-mono font-bold text-red-600">{formatMoney(partnerToDelete.remainingEarnings)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPartnerToDelete(null)}
+                  className="px-4 py-2 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  className="px-5 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Confirmer la Suppression</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

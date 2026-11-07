@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ProductCategory, ProductService } from '../types';
+import { ProductCategory, ProductService, AssociatedCenter } from '../types';
 import { formatMoney, formatPV, getCategoryLabel } from '../utils/formatters';
 import { 
   Calendar, 
@@ -24,9 +24,39 @@ import {
   X,
   ExternalLink,
   Flame,
-  Check
+  Check,
+  Share2,
+  Copy,
+  QrCode,
+  Building2,
+  Trash2,
+  Plus,
+  Search,
+  MessageCircle,
+  Smartphone,
+  Navigation,
+  CheckCheck
 } from 'lucide-react';
 import { NavTab } from '../components/Sidebar';
+
+// Pixel-perfect official Brand Icons for WhatsApp, Facebook, TikTok
+export const WhatsAppIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+  </svg>
+);
+
+export const FacebookIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+  </svg>
+);
+
+export const TikTokIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-1.01-.02 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.24 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
+  </svg>
+);
 
 interface ShowcaseViewProps {
   onNavigate?: (tab: NavTab) => void;
@@ -40,7 +70,11 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
     products, 
     partners,
     addAppointmentRequest,
-    addPartnerApplication
+    addPartnerApplication,
+    associatedCenters,
+    addAssociatedCenter,
+    updateAssociatedCenter,
+    deleteAssociatedCenter
   } = useApp();
 
   // Carousel State
@@ -53,6 +87,26 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
   const [isPartnerModalOpen, setIsPartnerModalOpen] = useState(false);
   const [isAdminEditModalOpen, setIsAdminEditModalOpen] = useState(false);
   const [selectedProductToBuy, setSelectedProductToBuy] = useState<ProductService | null>(null);
+
+  // Requirement 2: Option Partager l'Application
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Requirement 3: Centres Whieda Associés State & Filter
+  const [selectedCenterCity, setSelectedCenterCity] = useState<string>('all');
+  const [searchCenterQuery, setSearchCenterQuery] = useState('');
+  const [isCenterModalOpen, setIsCenterModalOpen] = useState(false);
+  const [centerToEdit, setCenterToEdit] = useState<AssociatedCenter | null>(null);
+  const [centerForm, setCenterForm] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    manager: '',
+    city: 'Douala',
+    workingHours: 'Lun - Ven: 08h00 - 18h30 | Sam: 08h30 - 15h00',
+    email: '',
+    status: 'actif' as 'actif' | 'en_ouverture',
+  });
 
   // Success Feedback Toast
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -161,6 +215,92 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
     setTimeout(() => setSuccessMessage(null), 4000);
   };
 
+  // Share Handlers
+  const handleCopyShareLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    });
+  };
+
+  const handleNativeShare = () => {
+    const shareData = {
+      title: 'Whieda Smart - Cabinet de Santé & Réseau de Prospérité',
+      text: "Découvrez l'application Whieda Smart : soins de santé intégrative, bilans bio-électroniques, pharmacie naturelle et opportunité MLM !",
+      url: window.location.href,
+    };
+    if (navigator.share) {
+      navigator.share(shareData).catch(() => {});
+    } else {
+      handleCopyShareLink();
+    }
+  };
+
+  // Associated Centers Handlers
+  const handleOpenAddCenter = () => {
+    setCenterToEdit(null);
+    setCenterForm({
+      name: '',
+      address: '',
+      phone: '+237 ',
+      manager: '',
+      city: 'Douala',
+      workingHours: 'Lun - Ven: 08h00 - 18h30 | Sam: 08h30 - 15h00',
+      email: '',
+      status: 'actif',
+    });
+    setIsCenterModalOpen(true);
+  };
+
+  const handleOpenEditCenter = (center: AssociatedCenter) => {
+    setCenterToEdit(center);
+    setCenterForm({
+      name: center.name,
+      address: center.address,
+      phone: center.phone,
+      manager: center.manager,
+      city: center.city,
+      workingHours: center.workingHours || 'Lun - Ven: 08h00 - 18h30 | Sam: 08h30 - 15h00',
+      email: center.email || '',
+      status: center.status || 'actif',
+    });
+    setIsCenterModalOpen(true);
+  };
+
+  const handleSaveCenter = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (centerToEdit) {
+      updateAssociatedCenter(centerToEdit.id, centerForm);
+      setSuccessMessage(`Le centre "${centerForm.name}" a été mis à jour avec succès.`);
+    } else {
+      addAssociatedCenter(centerForm);
+      setSuccessMessage(`Le centre associé "${centerForm.name}" a été ajouté avec succès.`);
+    }
+    setIsCenterModalOpen(false);
+    setTimeout(() => setSuccessMessage(null), 4000);
+  };
+
+  const handleDeleteCenter = (id: string, name: string) => {
+    deleteAssociatedCenter(id);
+    setSuccessMessage(`Le centre "${name}" a été retiré.`);
+    setTimeout(() => setSuccessMessage(null), 4000);
+  };
+
+  // Associated Centers Filtered List & Cities
+  const centerCities = Array.from(new Set((associatedCenters || []).map(c => c.city).filter(Boolean)));
+  const filteredCenters = (associatedCenters || []).filter(c => {
+    const matchesCity = selectedCenterCity === 'all' || c.city === selectedCenterCity;
+    const q = searchCenterQuery.toLowerCase().trim();
+    const matchesQuery = !q || 
+      c.name.toLowerCase().includes(q) || 
+      c.address.toLowerCase().includes(q) || 
+      c.manager.toLowerCase().includes(q) || 
+      c.phone.toLowerCase().includes(q) ||
+      c.city.toLowerCase().includes(q);
+    return matchesCity && matchesQuery;
+  });
+
   // Filtered products list for catalog
   const filteredProducts = products.filter(p => {
     if (selectedFilterCategory === 'all') return true;
@@ -183,10 +323,11 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* Top Banner: Contact, Working Hours & Admin Control */}
+      {/* Top Banner: Contact, Social Media, Working Hours, Share & Admin Control */}
       <div className="bg-gradient-to-r from-neutral-900 via-neutral-800 to-neutral-950 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-neutral-700/60">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 text-xs">
-          <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-neutral-300">
+          {/* Left: Contact Info */}
+          <div className="flex flex-wrap items-center gap-y-2 gap-x-5 text-neutral-300">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-orange-500 shrink-0" />
               <span className="truncate max-w-sm">{companySettings.address}</span>
@@ -204,23 +345,75 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0 self-end lg:self-center">
-            {currentUser.role === 'admin' ? (
+          {/* Right: Social Media Links, Share App & Admin Control */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0 self-start lg:self-center">
+            {/* WhatsApp Direct Link */}
+            <a
+              href={companySettings.whatsappLink || `https://wa.me/${(companySettings.whatsappPhone || companySettings.phone || '237699001122').replace(/[^0-9]/g, '')}?text=Bonjour%20Whieda%20Smart%2C%20je%20souhaite%20des%20informations.`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all shadow-xs text-xs"
+              title="Discuter directement sur WhatsApp"
+            >
+              <WhatsAppIcon className="w-3.5 h-3.5" />
+              <span>WhatsApp</span>
+            </a>
+
+            {/* Facebook Link */}
+            <a
+              href={companySettings.facebookUrl || 'https://facebook.com/whiedasmart'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all shadow-xs text-xs"
+              title="Page Facebook officielle"
+            >
+              <FacebookIcon className="w-3.5 h-3.5" />
+              <span>Facebook</span>
+            </a>
+
+            {/* TikTok Link */}
+            <a
+              href={companySettings.tiktokUrl || 'https://tiktok.com/@whiedasmart'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-700 hover:border-neutral-500 font-bold transition-all shadow-xs text-xs"
+              title="Vidéos et conseils santé sur TikTok"
+            >
+              <TikTokIcon className="w-3.5 h-3.5 text-pink-400" />
+              <span>TikTok</span>
+            </a>
+
+            {/* Link to Associated Centers */}
+            <a
+              href="#centres-associes"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white border border-neutral-700 text-xs font-semibold transition-all"
+            >
+              <Building2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Nos Centres</span>
+            </a>
+
+            {/* Share App Button */}
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-bold text-xs shadow-xs transition-all"
+              title="Partager l'application Whieda Smart"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Partager l'App</span>
+            </button>
+
+            {currentUser.role === 'admin' && (
               <button
                 onClick={() => {
                   setAdminSettingsForm(companySettings);
                   setIsAdminEditModalOpen(true);
                 }}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-xs font-medium transition-all shadow-xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-700 hover:bg-orange-800 text-white text-xs font-bold transition-all shadow-xs"
+                title="Modifier les coordonnées et réseaux sociaux (Admin)"
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                <span>Modifier les infos vitrine (Admin)</span>
+                <span>Admin Vitrine</span>
               </button>
-            ) : (
-              <div className="flex items-center gap-2 text-[11px] text-neutral-400">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Centre Agréé Phytothérapie & Bio-Santé</span>
-              </div>
             )}
           </div>
         </div>
@@ -246,8 +439,8 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
             {companySettings.heroSubheadline || companySettings.vision}
           </p>
 
-          {/* 3 Prominent Action Buttons requested */}
-          <div className="mt-8 flex flex-wrap items-center gap-4">
+          {/* Action Buttons requested */}
+          <div className="mt-8 flex flex-wrap items-center gap-3.5">
             {/* Button 1: Prendre un rendez-vous */}
             <button
               onClick={() => setIsAppointmentModalOpen(true)}
@@ -272,10 +465,28 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
             {/* Button 3: Devenir partenaire */}
             <button
               onClick={() => setIsPartnerModalOpen(true)}
-              className="px-6 py-3.5 rounded-xl bg-neutral-800/80 hover:bg-neutral-800 text-orange-400 hover:text-orange-300 font-bold text-sm border border-orange-500/30 transition-all flex items-center gap-2.5 transform active:scale-95"
+              className="px-6 py-3.5 rounded-xl bg-neutral-800/90 hover:bg-neutral-800 text-orange-400 hover:text-orange-300 font-bold text-sm border border-orange-500/30 transition-all flex items-center gap-2.5 transform active:scale-95"
             >
               <HeartHandshake className="w-4 h-4 text-orange-400" />
               <span>Devenir partenaire</span>
+            </button>
+
+            {/* Button 4: Nos Centres Whieda Associés */}
+            <a
+              href="#centres-associes"
+              className="px-5 py-3.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm backdrop-blur-md border border-white/20 transition-all flex items-center gap-2 transform active:scale-95"
+            >
+              <Building2 className="w-4 h-4 text-amber-400" />
+              <span>Nos Centres Associés</span>
+            </a>
+
+            {/* Button 5: Partager l'Application */}
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              className="px-5 py-3.5 rounded-xl bg-neutral-900/80 hover:bg-neutral-900 text-neutral-200 hover:text-white font-bold text-sm border border-neutral-700 transition-all flex items-center gap-2 transform active:scale-95"
+            >
+              <Share2 className="w-4 h-4 text-orange-400" />
+              <span>Partager l'App</span>
             </button>
           </div>
 
@@ -696,6 +907,358 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
               <HeartHandshake className="w-4 h-4 text-orange-400" />
               <span>Rejoindre le Réseau de Partenaires MLM</span>
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* SECTION 5: NOS CENTRES WHIEDA ASSOCIÉS (RÉGLABLES PAR L'ADMIN)           */}
+      {/* ========================================================================= */}
+      <section id="centres-associes" className="scroll-mt-8 space-y-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-100 text-orange-800 text-xs font-bold uppercase tracking-wider mb-2">
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Maillage National & Centres Agréés</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black text-neutral-900 tracking-tight">
+              Nos Centres Whieda Associés
+            </h2>
+            <p className="text-xs sm:text-sm text-neutral-600 mt-1 max-w-2xl">
+              Consultez nos médecins, réalisez vos bilans biométriques et retirez vos produits certifiés dans l'ensemble de nos centres partenaires.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 self-start md:self-auto flex-wrap">
+            {currentUser.role === 'admin' && (
+              <button
+                onClick={handleOpenAddCenter}
+                className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Ajouter un Centre Associé</span>
+              </button>
+            )}
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              className="px-4 py-2.5 bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-300 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-colors"
+            >
+              <Share2 className="w-4 h-4 text-orange-600" />
+              <span>Partager l'App</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Filter by City & Search Bar */}
+        <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* City Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+            <button
+              onClick={() => setSelectedCenterCity('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                selectedCenterCity === 'all'
+                  ? 'bg-neutral-900 text-white shadow-xs'
+                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+              }`}
+            >
+              Tous les centres ({(associatedCenters || []).length})
+            </button>
+            {centerCities.map(city => {
+              const count = (associatedCenters || []).filter(c => c.city === city).length;
+              return (
+                <button
+                  key={city}
+                  onClick={() => setSelectedCenterCity(city)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                    selectedCenterCity === city
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                  }`}
+                >
+                  {city} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Search Input */}
+          <div className="relative min-w-[260px]">
+            <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Rechercher par nom, ville, responsable ou adresse..."
+              value={searchCenterQuery}
+              onChange={e => setSearchCenterQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+          </div>
+        </div>
+
+        {/* Centres Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredCenters.length === 0 ? (
+            <div className="col-span-full bg-white p-12 text-center rounded-2xl border border-neutral-200 text-neutral-400">
+              <Building2 className="w-10 h-10 text-neutral-300 mx-auto mb-2" />
+              <p className="font-semibold text-neutral-700 text-sm">Aucun centre associé trouvé pour cette recherche.</p>
+              <p className="text-xs text-neutral-500 mt-1">Modifiez vos filtres de ville ou votre recherche par mot-clé.</p>
+            </div>
+          ) : (
+            filteredCenters.map(center => {
+              const cleanPhone = (center.phone || '').replace(/[^0-9]/g, '');
+              const isMain = center.name.toLowerCase().includes('siège') || center.name.toLowerCase().includes('akwa');
+
+              return (
+                <div
+                  key={center.id}
+                  className={`bg-white rounded-2xl border transition-all flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md ${
+                    isMain ? 'border-orange-300 ring-2 ring-orange-400/20' : 'border-neutral-200'
+                  }`}
+                >
+                  <div className="p-5 space-y-3.5">
+                    {/* Top tags */}
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-neutral-100 text-neutral-800 flex items-center gap-1 border border-neutral-200">
+                        <MapPin className="w-3 h-3 text-orange-600" />
+                        <span>{center.city}</span>
+                      </span>
+
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        center.status === 'en_ouverture'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      }`}>
+                        {center.status === 'en_ouverture' ? 'En ouverture' : 'Centre Actif'}
+                      </span>
+                    </div>
+
+                    {/* Center Name */}
+                    <div>
+                      <h3 className="font-extrabold text-base text-neutral-900 leading-snug">
+                        {center.name}
+                      </h3>
+                      {center.email && (
+                        <p className="text-[11px] text-neutral-400 font-mono mt-0.5">{center.email}</p>
+                      )}
+                    </div>
+
+                    {/* Responsable (Admin réglable) */}
+                    <div className="p-3 bg-orange-50/70 border border-orange-200/80 rounded-xl space-y-1 text-xs">
+                      <div className="text-[10px] uppercase font-bold text-orange-800 tracking-wider flex items-center gap-1">
+                        <Users className="w-3 h-3 text-orange-600" />
+                        <span>Responsable du Centre</span>
+                      </div>
+                      <div className="font-bold text-neutral-900 text-xs">
+                        {center.manager}
+                      </div>
+                    </div>
+
+                    {/* Adresse & Coordonnées */}
+                    <div className="space-y-2 text-xs text-neutral-600 pt-1">
+                      <div className="flex items-start gap-2">
+                        <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
+                        <span className="text-neutral-700">{center.address}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                        <a 
+                          href={`tel:${center.phone}`} 
+                          className="font-mono font-bold text-neutral-900 hover:text-orange-600 transition-colors"
+                        >
+                          {center.phone}
+                        </a>
+                      </div>
+                      {center.workingHours && (
+                        <div className="flex items-start gap-2">
+                          <Clock className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
+                          <span className="text-neutral-500 text-[11px]">{center.workingHours}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Bottom Actions */}
+                  <div className="p-4 bg-neutral-50 border-t border-neutral-100 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`tel:${center.phone}`}
+                        className="flex-1 py-2 rounded-lg bg-neutral-900 hover:bg-black text-white text-xs font-bold text-center transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Phone className="w-3 h-3 text-orange-400" />
+                        <span>Appeler</span>
+                      </a>
+
+                      <a
+                        href={`https://wa.me/${cleanPhone}?text=Bonjour%20%2C%20je%20vous%20contacte%20depuis%20l'application%20Whieda%20Smart%20concernant%20le%20${encodeURIComponent(center.name)}.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                        title="Contacter ce centre sur WhatsApp"
+                      >
+                        <WhatsAppIcon className="w-3.5 h-3.5" />
+                        <span>WhatsApp</span>
+                      </a>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setAptForm(prev => ({
+                          ...prev,
+                          reason: `Rendez-vous au ${center.name} (${center.city})`,
+                        }));
+                        setIsAppointmentModalOpen(true);
+                      }}
+                      className="w-full py-1.5 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-900 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Calendar className="w-3.5 h-3.5 text-orange-700" />
+                      <span>Prendre Rendez-vous dans ce centre</span>
+                    </button>
+
+                    {currentUser.role === 'admin' && (
+                      <div className="flex items-center justify-between pt-2 border-t border-neutral-200 text-xs">
+                        <span className="text-[10px] text-neutral-400 font-mono">ID: {center.id}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleOpenEditCenter(center)}
+                            className="px-2 py-1 rounded text-[11px] font-semibold text-blue-700 hover:bg-blue-100 flex items-center gap-1"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Modifier</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCenter(center.id, center.name)}
+                            className="px-2 py-1 rounded text-[11px] font-semibold text-red-700 hover:bg-red-100 flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Supprimer</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* SECTION 6: RÉSEAUX SOCIAUX & COMMUNAUTÉ WHIEDA (WHATSAPP, FACEBOOK, TIKTOK) */}
+      {/* ========================================================================= */}
+      <section className="bg-gradient-to-br from-neutral-900 via-neutral-950 to-stone-900 rounded-3xl p-8 sm:p-12 text-white border border-neutral-800 shadow-xl space-y-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 text-xs font-bold text-orange-400 uppercase tracking-wider mb-2">
+              <Sparkles className="w-4 h-4" />
+              <span>Communauté & Réseaux Sociaux</span>
+            </div>
+            <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight">
+              Rejoignez Whieda Smart sur Vos Réseaux Préférés
+            </h2>
+            <p className="text-xs sm:text-sm text-neutral-300 mt-2 leading-relaxed">
+              Conseils de santé au quotidien, témoignages de guérison, sessions de formation pour partenaires MLM et assistance médicale directe.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setIsShareModalOpen(true)}
+            className="px-6 py-3.5 bg-gradient-to-r from-orange-600 via-amber-600 to-orange-500 hover:from-orange-500 hover:to-amber-400 text-white font-bold text-xs rounded-xl shadow-lg flex items-center gap-2.5 transition-all self-start lg:self-center"
+          >
+            <Share2 className="w-4 h-4" />
+            <span>Partager l'Application</span>
+          </button>
+        </div>
+
+        {/* Social Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          {/* Card 1: WhatsApp */}
+          <div className="bg-gradient-to-b from-emerald-950/60 to-neutral-900/90 rounded-2xl p-6 border border-emerald-500/30 flex flex-col justify-between hover:border-emerald-400 transition-all shadow-md group">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                <WhatsAppIcon className="w-6 h-6" />
+              </div>
+              <h3 className="font-extrabold text-lg text-white">
+                Canal Officiel & Support WhatsApp
+              </h3>
+              <p className="text-xs text-neutral-300 leading-relaxed">
+                Discutez en direct avec nos conseillers médicaux, passez vos commandes de produits et recevez nos alertes santé.
+              </p>
+              <div className="font-mono text-xs text-emerald-400 font-bold">
+                {companySettings.whatsappPhone || companySettings.phone || '+237 699 00 11 22'}
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-emerald-800/40">
+              <a
+                href={companySettings.whatsappLink || `https://wa.me/${(companySettings.whatsappPhone || companySettings.phone || '237699001122').replace(/[^0-9]/g, '')}?text=Bonjour%20Whieda%20Smart%2C%20je%20souhaite%20des%20informations.`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
+              >
+                <span>Rejoindre sur WhatsApp</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+
+          {/* Card 2: Facebook */}
+          <div className="bg-gradient-to-b from-blue-950/60 to-neutral-900/90 rounded-2xl p-6 border border-blue-500/30 flex flex-col justify-between hover:border-blue-400 transition-all shadow-md group">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                <FacebookIcon className="w-6 h-6" />
+              </div>
+              <h3 className="font-extrabold text-lg text-white">
+                Page Facebook Officielle
+              </h3>
+              <p className="text-xs text-neutral-300 leading-relaxed">
+                Retrouvez notre actualité médicale, nos webinaires interactifs et les success stories de nos membres de réseau.
+              </p>
+              <div className="font-mono text-xs text-blue-400 font-bold">
+                @whiedasmart.officiel
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-blue-800/40">
+              <a
+                href={companySettings.facebookUrl || 'https://facebook.com/whiedasmart'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
+              >
+                <span>Nous Suivre sur Facebook</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+
+          {/* Card 3: TikTok */}
+          <div className="bg-gradient-to-b from-neutral-800/80 to-neutral-950 rounded-2xl p-6 border border-neutral-700 flex flex-col justify-between hover:border-pink-500/50 transition-all shadow-md group">
+            <div className="space-y-3">
+              <div className="w-12 h-12 rounded-xl bg-neutral-950 text-white border border-neutral-700 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                <TikTokIcon className="w-6 h-6 text-pink-400" />
+              </div>
+              <h3 className="font-extrabold text-lg text-white">
+                Compte TikTok Bio-Santé
+              </h3>
+              <p className="text-xs text-neutral-300 leading-relaxed">
+                Vidéos courtes, démonstrations d'usage des produits, recettes bien-être et conseils pratiques pour stimuler votre vitalité.
+              </p>
+              <div className="font-mono text-xs text-pink-400 font-bold">
+                @whiedasmart.sante
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-neutral-800">
+              <a
+                href={companySettings.tiktokUrl || 'https://tiktok.com/@whiedasmart'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all border border-neutral-600 shadow-sm"
+              >
+                <span>Découvrir sur TikTok</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -1285,6 +1848,72 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
                 />
               </div>
 
+              {/* Réseaux Sociaux & Liens */}
+              <div className="pt-3 border-t border-neutral-200 space-y-3">
+                <div className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-2 text-orange-600">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Liens Réseaux Sociaux (WhatsApp, Facebook, TikTok)</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1 flex items-center gap-1.5">
+                      <WhatsAppIcon className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Numéro WhatsApp direct</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="+237 699 00 11 22"
+                      value={adminSettingsForm.whatsappPhone || ''}
+                      onChange={e => setAdminSettingsForm({ ...adminSettingsForm, whatsappPhone: e.target.value })}
+                      className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1 flex items-center gap-1.5">
+                      <WhatsAppIcon className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Lien d'invitation / discussion WhatsApp</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://wa.me/237..."
+                      value={adminSettingsForm.whatsappLink || ''}
+                      onChange={e => setAdminSettingsForm({ ...adminSettingsForm, whatsappLink: e.target.value })}
+                      className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1 flex items-center gap-1.5">
+                      <FacebookIcon className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Lien Page Facebook</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://facebook.com/..."
+                      value={adminSettingsForm.facebookUrl || ''}
+                      onChange={e => setAdminSettingsForm({ ...adminSettingsForm, facebookUrl: e.target.value })}
+                      className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1 flex items-center gap-1.5">
+                      <TikTokIcon className="w-3.5 h-3.5 text-pink-500" />
+                      <span>Lien Profil TikTok</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://tiktok.com/@..."
+                      value={adminSettingsForm.tiktokUrl || ''}
+                      onChange={e => setAdminSettingsForm({ ...adminSettingsForm, tiktokUrl: e.target.value })}
+                      className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="pt-3 border-t border-neutral-200 flex items-center justify-end gap-3">
                 <button
                   type="button"
@@ -1298,6 +1927,353 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
                   className="px-5 py-2 font-bold rounded-lg bg-orange-600 hover:bg-orange-700 text-white shadow-xs"
                 >
                   Enregistrer les modifications
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 5: OPTION PARTAGER L'APPLICATION (LIEN, WHATSAPP, QR CODE)           */}
+      {/* ========================================================================= */}
+      {isShareModalOpen && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full border border-neutral-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
+            <div className="bg-gradient-to-r from-neutral-900 via-neutral-800 to-neutral-950 p-6 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-600 text-white flex items-center justify-center shadow-md">
+                  <Share2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base">Partager l'Application Whieda Smart</h3>
+                  <p className="text-xs text-neutral-400">Transmettez l'accès à vos patients et membres du réseau</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsShareModalOpen(false)}
+                className="text-neutral-400 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Copy URL Box */}
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1.5">
+                  Lien Web Direct de l'Application :
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={typeof window !== 'undefined' ? window.location.href : 'https://whiedasmart.com'}
+                    className="flex-1 px-3 py-2.5 text-xs bg-neutral-50 border border-neutral-300 rounded-xl font-mono text-neutral-700 select-all focus:outline-none"
+                  />
+                  <button
+                    onClick={handleCopyShareLink}
+                    className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
+                      copiedLink
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-neutral-900 hover:bg-black text-white'
+                    }`}
+                  >
+                    {copiedLink ? (
+                      <>
+                        <CheckCheck className="w-4 h-4 text-emerald-200" />
+                        <span>Copié !</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copier</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                {copiedLink && (
+                  <p className="text-[11px] font-semibold text-emerald-600 mt-1 flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>Lien copié dans le presse-papier avec succès !</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Direct Social Media Sharing Buttons */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-neutral-700">
+                  Partager Instantanément sur les Réseaux :
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* Share on WhatsApp */}
+                  <a
+                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                      "Découvrez l'application Whieda Smart : cabinet de santé bio-électronique, pharmacie naturelle certifiée et opportunité MLM ! Accéder ici : " +
+                      (typeof window !== 'undefined' ? window.location.href : 'https://whiedasmart.com')
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-2xs"
+                  >
+                    <WhatsAppIcon className="w-4 h-4 text-emerald-600" />
+                    <span>Via WhatsApp</span>
+                  </a>
+
+                  {/* Share on Facebook */}
+                  <a
+                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+                      typeof window !== 'undefined' ? window.location.href : 'https://whiedasmart.com'
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-800 font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-2xs"
+                  >
+                    <FacebookIcon className="w-4 h-4 text-blue-600" />
+                    <span>Via Facebook</span>
+                  </a>
+
+                  {/* Share via SMS */}
+                  <a
+                    href={`sms:?body=${encodeURIComponent(
+                      "Application Whieda Smart - Santé & Pharmacie Verte : " +
+                      (typeof window !== 'undefined' ? window.location.href : '')
+                    )}`}
+                    className="p-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-800 font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Smartphone className="w-4 h-4 text-neutral-600" />
+                    <span>Par SMS</span>
+                  </a>
+
+                  {/* Share via Email */}
+                  <a
+                    href={`mailto:?subject=${encodeURIComponent("Recommandation : Application Whieda Smart")}&body=${encodeURIComponent(
+                      "Bonjour,\n\nJe vous invite à découvrir la plateforme Whieda Smart dédiée à la santé intégrative, aux bilans biométriques et aux soins de phytothérapie.\n\nLien d'accès : " +
+                      (typeof window !== 'undefined' ? window.location.href : '')
+                    )}`}
+                    className="p-3 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-800 font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Mail className="w-4 h-4 text-orange-600" />
+                    <span>Par Email</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Native Mobile Share Button */}
+              <div>
+                <button
+                  onClick={handleNativeShare}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span>Ouvrir le menu de partage mobile (Tous réseaux)</span>
+                </button>
+              </div>
+
+              {/* QR Code Section */}
+              <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 flex items-center gap-4">
+                <div className="w-20 h-20 bg-white p-2 rounded-xl border border-neutral-300 shadow-2xs shrink-0 flex items-center justify-center">
+                  <svg className="w-full h-full text-neutral-900" viewBox="0 0 100 100" fill="currentColor">
+                    {/* Visual QR Code Pattern */}
+                    <rect x="0" y="0" width="30" height="30" rx="4" fill="currentColor" />
+                    <rect x="5" y="5" width="20" height="20" rx="2" fill="white" />
+                    <rect x="10" y="10" width="10" height="10" fill="currentColor" />
+
+                    <rect x="70" y="0" width="30" height="30" rx="4" fill="currentColor" />
+                    <rect x="75" y="5" width="20" height="20" rx="2" fill="white" />
+                    <rect x="80" y="10" width="10" height="10" fill="currentColor" />
+
+                    <rect x="0" y="70" width="30" height="30" rx="4" fill="currentColor" />
+                    <rect x="5" y="75" width="20" height="20" rx="2" fill="white" />
+                    <rect x="10" y="80" width="10" height="10" fill="currentColor" />
+
+                    <rect x="40" y="10" width="10" height="10" fill="currentColor" />
+                    <rect x="55" y="15" width="8" height="8" fill="currentColor" />
+                    <rect x="45" y="35" width="10" height="10" fill="currentColor" />
+                    <rect x="15" y="45" width="10" height="10" fill="currentColor" />
+                    <rect x="75" y="45" width="12" height="8" fill="currentColor" />
+                    <rect x="40" y="65" width="10" height="10" fill="currentColor" />
+                    <rect x="60" y="75" width="8" height="8" fill="currentColor" />
+                    <rect x="80" y="80" width="12" height="12" fill="currentColor" />
+                  </svg>
+                </div>
+
+                <div>
+                  <div className="font-extrabold text-xs text-neutral-900 flex items-center gap-1.5">
+                    <QrCode className="w-4 h-4 text-orange-600" />
+                    <span>Scannez pour Ouvrir sur Smartphone</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
+                    Pointez l'appareil photo d'un téléphone vers ce code pour lancer immédiatement Whieda Smart sans saisie d'adresse.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-neutral-100 border-t border-neutral-200 flex justify-end">
+              <button
+                onClick={() => setIsShareModalOpen(false)}
+                className="px-5 py-2 rounded-xl bg-white border border-neutral-300 text-neutral-700 text-xs font-bold hover:bg-neutral-50"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 6: GÉRER LE CENTRE WHIEDA ASSOCIÉ (AJOUTER / MODIFIER - ADMIN)       */}
+      {/* ========================================================================= */}
+      {isCenterModalOpen && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full border border-neutral-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8">
+            <div className="bg-gradient-to-r from-red-600 via-orange-600 to-amber-500 p-6 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-xs text-white flex items-center justify-center">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base">
+                    {centerToEdit ? 'Modifier le Centre Whieda Associé' : 'Ajouter un Nouveau Centre Associé'}
+                  </h3>
+                  <p className="text-xs text-orange-100">Configuration des coordonnées et du responsable</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsCenterModalOpen(false)}
+                className="text-white/80 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCenter} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1">
+                  Nom du Centre Associé *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ex: Centre Whieda Santé Bastos"
+                  value={centerForm.name}
+                  onChange={e => setCenterForm({ ...centerForm, name: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none font-bold text-neutral-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Ville *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ex: Yaoundé, Douala, Bafoussam..."
+                    value={centerForm.city}
+                    onChange={e => setCenterForm({ ...centerForm, city: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Statut du Centre *
+                  </label>
+                  <select
+                    value={centerForm.status}
+                    onChange={e => setCenterForm({ ...centerForm, status: e.target.value as 'actif' | 'en_ouverture' })}
+                    className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none font-semibold"
+                  >
+                    <option value="actif">Centre Actif</option>
+                    <option value="en_ouverture">En cours d'ouverture</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1">
+                  Responsable du Centre * (Nom & Titre)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ex: Mme Bella Christine (Directrice Régionale) ou Dr. Kamga"
+                  value={centerForm.manager}
+                  onChange={e => setCenterForm({ ...centerForm, manager: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1">
+                  Adresse Complète * (Quartier, Repère)
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ex: Avenue Rosa Parks, Derrière Ambassade de Belgique"
+                  value={centerForm.address}
+                  onChange={e => setCenterForm({ ...centerForm, address: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Numéro de Téléphone *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="+237 6..."
+                    value={centerForm.phone}
+                    onChange={e => setCenterForm({ ...centerForm, phone: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Email du Centre (Optionnel)
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="centre@whiedasmart.com"
+                    value={centerForm.email}
+                    onChange={e => setCenterForm({ ...centerForm, email: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1">
+                  Horaires d'Accueil
+                </label>
+                <input
+                  type="text"
+                  placeholder="ex: Lun - Ven: 08h00 - 18h30 | Sam: 08h30 - 15h00"
+                  value={centerForm.workingHours}
+                  onChange={e => setCenterForm({ ...centerForm, workingHours: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-neutral-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-neutral-200 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsCenterModalOpen(false)}
+                  className="px-4 py-2 text-xs font-medium text-neutral-600 hover:text-neutral-900"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 rounded-xl shadow-sm"
+                >
+                  {centerToEdit ? 'Enregistrer les Modifications' : 'Créer le Centre Associé'}
                 </button>
               </div>
             </form>
