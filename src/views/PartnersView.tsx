@@ -1233,7 +1233,7 @@ export const PartnersView: React.FC = () => {
                   Rapport Officiel de Direction
                 </span>
                 <h3 className="text-base font-extrabold text-neutral-900">
-                  État Administratif & Financier Global du Réseau Whieda Smart
+                  État Administratif & Financier Global du Réseau Whieda Meyomessala
                 </h3>
               </div>
 
@@ -1648,7 +1648,7 @@ export const PartnersView: React.FC = () => {
               {/* Cachet & Visa */}
               <div className="pt-4 border-t border-neutral-200 flex items-center justify-between text-[10px] text-neutral-500">
                 <div>
-                  <span>Délivré par le secrétariat réseau Whieda Smart.</span>
+                  <span>Délivré par le secrétariat réseau Whieda Meyomessala.</span>
                   <div className="w-24 h-12 border border-dashed border-neutral-300 rounded mt-1 flex items-center justify-center text-neutral-400">
                     Cachet Réseau
                   </div>
@@ -1677,7 +1677,7 @@ export const PartnersView: React.FC = () => {
                   Document Officiel d'Arborescence
                 </span>
                 <h3 className="text-base font-extrabold text-neutral-900">
-                  Arbre Généalogique Complet du Réseau Whieda Smart
+                  Arbre Généalogique Complet du Réseau Whieda Meyomessala
                 </h3>
               </div>
 
@@ -1871,7 +1871,7 @@ export const PartnersView: React.FC = () => {
               </div>
 
               <div className="pt-3 border-t border-neutral-200 text-center text-[10px] text-neutral-400">
-                Document de structure MLM officiel Whieda Smart. Généré automatiquement par le système ERP.
+                Document de structure MLM officiel Whieda Meyomessala. Généré automatiquement par le système ERP.
               </div>
             </div>
           </div>

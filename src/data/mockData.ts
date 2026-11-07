@@ -5,10 +5,10 @@ import {
 } from '../types';
 
 export const INITIAL_COMPANY_SETTINGS: CompanySettings = {
-  name: 'Whieda Smart',
+  name: 'Whieda Meyomessala',
   tagline: 'Cabinet de Santé, Pharmacie Naturelle & Prospérité Partagée',
   vision: "Pionnier de la santé intégrative et de la bio-énergie en Afrique subsaharienne. Notre vision est d'unir l'excellence de la phytothérapie ancestrale, les bilans biométriques de haute précision et un modèle coopératif équitable qui transforme chaque patient en ambassadeur et acteur de son bien-être.",
-  logoText: 'Whieda Smart',
+  logoText: 'Whieda Meyomessala',
   logoUrl: '',
   address: 'Boulevard de la Liberté, Face Ancien Cinéma Le Wouri, Akwa - Douala, Cameroun',
   email: 'direction@whiedasmart.com',
@@ -19,15 +19,15 @@ export const INITIAL_COMPANY_SETTINGS: CompanySettings = {
   heroSubheadline: "Accédez à des soins médicaux personnalisés, des bilans de santé innovants, notre gamme exclusive de phytothérapie certifiée et rejoignez notre communauté de partenaires MLM.",
   heroImageUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&auto=format&fit=crop&q=80',
   whatsappPhone: '+237699001122',
-  whatsappLink: 'https://wa.me/237699001122?text=Bonjour%20Whieda%20Smart%2C%20je%20souhaite%20en%20savoir%20plus%20sur%20vos%20soins%20et%20produits.',
-  facebookUrl: 'https://facebook.com/whiedasmart.officiel',
-  tiktokUrl: 'https://tiktok.com/@whiedasmart.sante',
+  whatsappLink: 'https://wa.me/237699001122?text=Bonjour%20Whieda%20Meyomessala%2C%20je%20souhaite%20en%20savoir%20plus%20sur%20vos%20soins%20et%20produits.',
+  facebookUrl: 'https://facebook.com/whiedameyomessala.officiel',
+  tiktokUrl: 'https://tiktok.com/@whiedameyomessala.sante',
 };
 
 export const INITIAL_ASSOCIATED_CENTERS: AssociatedCenter[] = [
   {
     id: 'ctr-1',
-    name: 'Centre Whieda Smart Akwa (Siège National)',
+    name: 'Centre Whieda Meyomessala Akwa (Siège National)',
     address: 'Boulevard de la Liberté, Face Ancien Cinéma Le Wouri, Akwa',
     city: 'Douala',
     phone: '+237 699 00 11 22',

@@ -20,7 +20,7 @@ export const generateInvoicePDF = (sale: Sale, companySettings?: CompanySettings
   currentY += 8;
 
   // --- 2. Header: Company Info on Left, Invoice Title on Right ---
-  const compName = companySettings?.name || 'WHIEDA SMART';
+  const compName = companySettings?.name || 'WHIEDA MEYOMESSALA';
   const compTagline = companySettings?.tagline || 'Cabinet de Santé, Pharmacie Naturelle & Prospérité Partagée';
   const compAddress = companySettings?.address || 'Boulevard de la Liberté, Akwa - Douala, Cameroun';
   const compPhone = companySettings?.phone || '(+237) 699 00 11 22';
@@ -283,7 +283,7 @@ export const generateInvoicePDF = (sale: Sale, companySettings?: CompanySettings
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
   doc.text('Cachet Caisse & Signature', margin + 6, currentY + 7);
-  doc.text('Whieda Smart Akwa Douala', margin + 6, currentY + 12);
+  doc.text('Whieda Meyomessala Akwa Douala', margin + 6, currentY + 12);
 
   // Cashier verification text
   doc.setLineDashPattern([], 0);
@@ -338,7 +338,7 @@ export const generateGlobalAdminReportPDF = (partners: Partner[], companySetting
   currentY += 7;
 
   // Header Titles
-  const compName = companySettings?.name || 'WHIEDA SMART';
+  const compName = companySettings?.name || 'WHIEDA MEYOMESSALA';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(220, 38, 38);
@@ -572,7 +572,7 @@ export const generateGlobalAdminReportPDF = (partners: Partner[], companySetting
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(148, 163, 184);
-  doc.text('[Visa & Cachet Officiel Whieda Smart]', margin + 10, currentY + 5);
+  doc.text('[Visa & Cachet Officiel Whieda Meyomessala]', margin + 10, currentY + 5);
   doc.text('[Visa & Cachet Direction Générale]', pageWidth - margin - 70, currentY + 5);
 
   const cleanDate = new Date().toISOString().split('T')[0];
@@ -600,7 +600,7 @@ export const generateNetworkTreePDF = (partners: Partner[], companySettings?: Co
   currentY += 6;
 
   // Header Titles
-  const compName = companySettings?.name || 'WHIEDA SMART';
+  const compName = companySettings?.name || 'WHIEDA MEYOMESSALA';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.setTextColor(220, 38, 38);
@@ -897,7 +897,7 @@ export const generatePartnerSheetPDF = (partner: Partner, downlines: Partner[], 
   currentY += 8;
 
   // Header Title
-  const compName = companySettings?.name || 'WHIEDA SMART';
+  const compName = companySettings?.name || 'WHIEDA MEYOMESSALA';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(220, 38, 38);
@@ -1143,7 +1143,7 @@ export const generatePartnerSheetPDF = (partner: Partner, downlines: Partner[], 
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184);
   doc.text('Cachet de la Direction Réseau', margin + 4, currentY + 7);
-  doc.text('Whieda Smart Akwa Douala', margin + 4, currentY + 12);
+  doc.text('Whieda Meyomessala Akwa Douala', margin + 4, currentY + 12);
 
   doc.setLineDashPattern([], 0);
   doc.text('Fiche certifiée conforme aux registres MLM.', pageWidth - margin, currentY + 7, { align: 'right' });
@@ -1198,7 +1198,7 @@ export const generatePatientsVisitsReportPDF = (
   currentY += 7;
 
   // Header Title & Brand
-  const compName = companySettings?.name || 'WHIEDA SMART';
+  const compName = companySettings?.name || 'WHIEDA MEYOMESSALA';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(220, 38, 38);
@@ -1406,7 +1406,7 @@ export const generatePatientsVisitsReportPDF = (
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
   doc.text('Le Responsable Accueil & Réception', margin + 15, currentY);
-  doc.text('La Direction Générale Whieda Smart', pageWidth - margin - 75, currentY);
+  doc.text('La Direction Générale Whieda Meyomessala', pageWidth - margin - 75, currentY);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
@@ -1439,7 +1439,7 @@ export const generatePartnerPayoutsReportPDF = (
   currentY += 7;
 
   // Company Information & Document Title
-  const compName = companySettings?.name || 'WHIEDA SMART';
+  const compName = companySettings?.name || 'WHIEDA MEYOMESSALA';
   const compTagline = companySettings?.tagline || 'Cabinet de Santé, Pharmacie Naturelle & Prospérité Partagée';
   const compAddress = companySettings?.address || 'Boulevard de la Liberté, Face Ancien Cinéma Le Wouri, Akwa - Douala';
   const compPhone = companySettings?.phone || '(+237) 699 00 11 22';
@@ -1673,7 +1673,7 @@ export const generatePartnerPayoutsReportPDF = (
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
   doc.text('Le Responsable de Trésorerie & Comptabilité', margin + 25, currentY);
-  doc.text('La Direction Générale Whieda Smart', pageWidth - margin - 85, currentY);
+  doc.text('La Direction Générale Whieda Meyomessala', pageWidth - margin - 85, currentY);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);

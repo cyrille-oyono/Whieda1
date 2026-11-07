@@ -226,8 +226,8 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
 
   const handleNativeShare = () => {
     const shareData = {
-      title: 'Whieda Smart - Cabinet de Santé & Réseau de Prospérité',
-      text: "Découvrez l'application Whieda Smart : soins de santé intégrative, bilans bio-électroniques, pharmacie naturelle et opportunité MLM !",
+      title: 'Whieda Meyomessala - Cabinet de Santé & Réseau de Prospérité',
+      text: "Découvrez l'application Whieda Meyomessala : soins de santé intégrative, bilans bio-électroniques, pharmacie naturelle et opportunité MLM !",
       url: window.location.href,
     };
     if (navigator.share) {
@@ -396,7 +396,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
             <button
               onClick={() => setIsShareModalOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-bold text-xs shadow-xs transition-all"
-              title="Partager l'application Whieda Smart"
+              title="Partager l'application Whieda Meyomessala"
             >
               <Share2 className="w-3.5 h-3.5" />
               <span>Partager l'App</span>
@@ -751,7 +751,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
                     />
                   ) : (
                     <div className="text-neutral-400 text-xs font-semibold">
-                      Whieda Smart
+                      Whieda Meyomessala
                     </div>
                   )}
                   <span className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/70 backdrop-blur-xs text-white text-[10px] font-mono rounded">
@@ -764,7 +764,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
                 </h4>
 
                 <p className="mt-2 text-xs text-neutral-600 line-clamp-3 leading-relaxed">
-                  {product.description || "Solution phytothérapeutique exclusive certifiée Whieda Smart."}
+                  {product.description || "Solution phytothérapeutique exclusive certifiée Whieda Meyomessala."}
                 </p>
               </div>
 
@@ -838,7 +838,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
             <span>Notre Vision Stratégique</span>
           </div>
           <h3 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 leading-tight">
-            Pourquoi Choisir Whieda Smart ?
+            Pourquoi Choisir Whieda Meyomessala ?
           </h3>
           <p className="text-sm text-neutral-700 leading-relaxed">
             {companySettings.vision}
@@ -1153,7 +1153,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
               <span>Communauté & Réseaux Sociaux</span>
             </div>
             <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-white leading-tight">
-              Rejoignez Whieda Smart sur Vos Réseaux Préférés
+              Rejoignez Whieda Meyomessala sur Vos Réseaux Préférés
             </h2>
             <p className="text-xs sm:text-sm text-neutral-300 mt-2 leading-relaxed">
               Conseils de santé au quotidien, témoignages de guérison, sessions de formation pour partenaires MLM et assistance médicale directe.
@@ -1426,7 +1426,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
                 <ShoppingBag className="w-5 h-5" />
                 <div>
                   <h3 className="font-bold text-sm">Commande & Réservation Produit</h3>
-                  <p className="text-[11px] text-orange-100">Pharmacie & Boutique Whieda Smart</p>
+                  <p className="text-[11px] text-orange-100">Pharmacie & Boutique Whieda Meyomessala</p>
                 </div>
               </div>
               <button onClick={() => setIsBuyModalOpen(false)} className="text-white/80 hover:text-white">
@@ -1575,7 +1575,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
               <div className="flex items-center gap-2.5">
                 <HeartHandshake className="w-5 h-5" />
                 <div>
-                  <h3 className="font-bold text-sm">Devenir Partenaire Whieda Smart</h3>
+                  <h3 className="font-bold text-sm">Devenir Partenaire Whieda Meyomessala</h3>
                   <p className="text-[11px] text-orange-100">Bâtissez votre indépendance financière dans la santé</p>
                 </div>
               </div>
@@ -1946,7 +1946,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
                   <Share2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base">Partager l'Application Whieda Smart</h3>
+                  <h3 className="font-extrabold text-base">Partager l'Application Whieda Meyomessala</h3>
                   <p className="text-xs text-neutral-400">Transmettez l'accès à vos patients et membres du réseau</p>
                 </div>
               </div>
@@ -2009,7 +2009,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
                   {/* Share on WhatsApp */}
                   <a
                     href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
-                      "Découvrez l'application Whieda Smart : cabinet de santé bio-électronique, pharmacie naturelle certifiée et opportunité MLM ! Accéder ici : " +
+                      "Découvrez l'application Whieda Meyomessala : cabinet de santé bio-électronique, pharmacie naturelle certifiée et opportunité MLM ! Accéder ici : " +
                       (typeof window !== 'undefined' ? window.location.href : 'https://whiedasmart.com')
                     )}`}
                     target="_blank"
@@ -2036,7 +2036,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
                   {/* Share via SMS */}
                   <a
                     href={`sms:?body=${encodeURIComponent(
-                      "Application Whieda Smart - Santé & Pharmacie Verte : " +
+                      "Application Whieda Meyomessala - Santé & Pharmacie Verte : " +
                       (typeof window !== 'undefined' ? window.location.href : '')
                     )}`}
                     className="p-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 text-neutral-800 font-bold text-xs flex items-center justify-center gap-2 transition-colors"
@@ -2047,8 +2047,8 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
 
                   {/* Share via Email */}
                   <a
-                    href={`mailto:?subject=${encodeURIComponent("Recommandation : Application Whieda Smart")}&body=${encodeURIComponent(
-                      "Bonjour,\n\nJe vous invite à découvrir la plateforme Whieda Smart dédiée à la santé intégrative, aux bilans biométriques et aux soins de phytothérapie.\n\nLien d'accès : " +
+                    href={`mailto:?subject=${encodeURIComponent("Recommandation : Application Whieda Meyomessala")}&body=${encodeURIComponent(
+                      "Bonjour,\n\nJe vous invite à découvrir la plateforme Whieda Meyomessala dédiée à la santé intégrative, aux bilans biométriques et aux soins de phytothérapie.\n\nLien d'accès : " +
                       (typeof window !== 'undefined' ? window.location.href : '')
                     )}`}
                     className="p-3 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-800 font-bold text-xs flex items-center justify-center gap-2 transition-colors"
@@ -2104,7 +2104,7 @@ export const ShowcaseView: React.FC<ShowcaseViewProps> = ({ onNavigate }) => {
                     <span>Scannez pour Ouvrir sur Smartphone</span>
                   </div>
                   <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
-                    Pointez l'appareil photo d'un téléphone vers ce code pour lancer immédiatement Whieda Smart sans saisie d'adresse.
+                    Pointez l'appareil photo d'un téléphone vers ce code pour lancer immédiatement Whieda Meyomessala sans saisie d'adresse.
                   </p>
                 </div>
               </div>

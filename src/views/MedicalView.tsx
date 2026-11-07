@@ -1087,7 +1087,7 @@ export const MedicalView: React.FC = () => {
                   Rapport Médical & Bilan de Santé A4
                 </span>
                 <p className="text-[11px] text-neutral-400">
-                  Format officiel Whieda Smart prêt pour impression directe ou sauvegarde PDF
+                  Format officiel Whieda Meyomessala prêt pour impression directe ou sauvegarde PDF
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1283,7 +1283,7 @@ export const MedicalView: React.FC = () => {
               {/* Signature & Stamp Zone */}
               <div className="pt-6 border-t border-neutral-200 flex items-center justify-between text-xs">
                 <div className="space-y-1">
-                  <div className="text-[10px] text-neutral-400">Authentification Whieda Smart</div>
+                  <div className="text-[10px] text-neutral-400">Authentification Whieda Meyomessala</div>
                   <div className="w-24 h-12 border border-dashed border-neutral-300 rounded flex items-center justify-center text-[10px] text-neutral-400">
                     Cachet Clinique
                   </div>

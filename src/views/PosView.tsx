@@ -909,7 +909,7 @@ export const PosView: React.FC = () => {
                     <span className="font-bold block text-amber-900">Conseils & Validité :</span>
                     <p>• Conservez cette facture comme preuve d'achat et garantie de conformité.</p>
                     <p>• Points de Valeur (PV) automatiquement crédités sur le compte du parrain.</p>
-                    <p className="text-[10px] text-amber-800 font-mono mt-1">Authentification : Système Whieda Smart ERP</p>
+                    <p className="text-[10px] text-amber-800 font-mono mt-1">Authentification : Système Whieda Meyomessala ERP</p>
                   </div>
 
                   {/* Right totals box */}
@@ -940,14 +940,14 @@ export const PosView: React.FC = () => {
                 {/* Footer Stamp */}
                 <div className="pt-3 border-t border-neutral-200 flex items-center justify-between text-[10px] text-neutral-400">
                   <span>Document officiel délivré au client le jour de la transaction.</span>
-                  <div className="font-mono font-semibold text-neutral-500">Whieda Smart Caisse POS · Akwa Douala</div>
+                  <div className="font-mono font-semibold text-neutral-500">Whieda Meyomessala Caisse POS · Akwa Douala</div>
                 </div>
               </div>
             ) : (
               /* FORMAT 2: TICKET THERMIQUE 80MM */
               <div className="print-page text-center font-mono text-[11px] space-y-3 text-neutral-900 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
                 <div className="space-y-0.5">
-                  <div className="text-base font-extrabold tracking-tight">WHIEDA SMART</div>
+                  <div className="text-base font-extrabold tracking-tight">{companySettings?.name?.toUpperCase() || 'WHIEDA MEYOMESSALA'}</div>
                   <div className="text-[10px]">Boutique Santé & Cabinet Médical</div>
                   <div className="text-[10px]">Tél : (+237) 699 00 11 22 / 677 22 33 44</div>
                   <div className="text-[10px]">Douala / Yaoundé - Cameroun</div>

@@ -19,7 +19,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal }) => {
-  const { currentUser, switchRole, logout } = useApp();
+  const { currentUser, switchRole, logout, companySettings } = useApp();
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
 
   const roles: { role: UserRole; label: string; icon: React.ReactNode; color: string }[] = [
@@ -43,7 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal }) => {
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">
             <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent whitespace-nowrap">
-              Whieda Smart
+              {companySettings?.name || 'Whieda Meyomessala'}
             </span>
             <span className="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 font-semibold tracking-wide uppercase">
               Pro

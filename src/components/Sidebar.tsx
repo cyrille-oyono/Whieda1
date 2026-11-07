@@ -199,8 +199,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
 
       {/* Quick Brand Footer */}
       <div className="p-4 border-t border-neutral-100 text-[11px] text-neutral-400 flex items-center justify-between">
-        <span>Whieda Smart v2.4</span>
-        <span className="font-mono">Supabase Ready</span>
+        <span>Whieda Meyomessala</span>
+        <span className="font-mono">v2.5</span>
       </div>
     </aside>
   );

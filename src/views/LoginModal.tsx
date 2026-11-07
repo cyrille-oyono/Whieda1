@@ -39,7 +39,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
           <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center mx-auto mb-3 text-white font-extrabold text-2xl shadow-inner">
             W
           </div>
-          <h2 className="text-xl font-bold">Connexion Sécurisée Whieda Smart</h2>
+          <h2 className="text-xl font-bold">Connexion Sécurisée Whieda Meyomessala</h2>
           <p className="text-xs text-orange-100 mt-1">
             Système d’authentification par Rôles (RBAC) · Sans inscription publique libre
           </p>

@@ -170,7 +170,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
     const saved = localStorage.getItem('whieda_company_settings');
-    return saved ? JSON.parse(saved) : INITIAL_COMPANY_SETTINGS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.name === 'Whieda Smart' || !parsed.name) {
+          parsed.name = 'Whieda Meyomessala';
+          parsed.logoText = 'Whieda Meyomessala';
+        }
+        return parsed;
+      } catch (e) {
+        return INITIAL_COMPANY_SETTINGS;
+      }
+    }
+    return INITIAL_COMPANY_SETTINGS;
   });
 
   const [appointmentRequests, setAppointmentRequests] = useState<AppointmentRequest[]>(() => {

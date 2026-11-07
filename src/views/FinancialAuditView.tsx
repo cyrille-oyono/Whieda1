@@ -375,7 +375,7 @@ export const FinancialAuditView: React.FC<FinancialAuditViewProps> = ({ onNaviga
                   <span>A / Total Global Combiné (Entreprise + Partenaires)</span>
                 </div>
                 <h2 className="text-xl lg:text-2xl font-black tracking-tight text-white mt-1">
-                  Synthèse Consolidée du Modèle Whieda Smart
+                  Synthèse Consolidée du Modèle Whieda Meyomessala
                 </h2>
                 <p className="text-xs text-neutral-300 max-w-2xl">
                   Regroupement de l'activité globale : flux monétaires cumulés (chiffre d'affaires boutique & pharmacie + commissions directes générées par le réseau MLM) et points de valeur (PV) injectés.

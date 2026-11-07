@@ -1073,7 +1073,7 @@ export const VisitsView: React.FC = () => {
                   <div className="h-16"></div>
                 </div>
                 <div>
-                  <div className="font-bold text-neutral-800">La Direction Whieda Smart</div>
+                  <div className="font-bold text-neutral-800">La Direction Whieda Meyomessala</div>
                   <div className="text-[10px] text-neutral-400 mt-0.5">[Visa & Cachet Officiel]</div>
                   <div className="h-16"></div>
                 </div>

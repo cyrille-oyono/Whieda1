@@ -118,7 +118,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
           <div className="flex items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-orange-100">
               <Sparkles className="w-4 h-4" />
-              <span>Plateforme Intégrée Whieda Smart</span>
+              <span>Plateforme Intégrée Whieda Meyomessala</span>
             </div>
 
             {/* Notification Bell Button */}
@@ -211,7 +211,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             Bonjour, {currentUser.fullName}
           </h1>
           <p className="mt-2 text-sm text-orange-50 leading-relaxed">
-            Bienvenue sur le portail unifié Whieda Smart. Suivi des visites clients et parrainages, gestion des stocks boutique & pharmacie, caisse POS et dossiers de consultations médicales.
+            Bienvenue sur le portail unifié Whieda Meyomessala. Suivi des visites clients et parrainages, gestion des stocks boutique & pharmacie, caisse POS et dossiers de consultations médicales.
           </p>
           <div className="mt-5 flex flex-wrap gap-2.5">
             {(currentUser.role === 'admin' || currentUser.role === 'receptionist') && (
