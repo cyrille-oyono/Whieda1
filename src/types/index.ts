@@ -81,6 +81,7 @@ export type PartnerCardStatus = 'Start' | 'Standard' | 'Premium' | 'VIP';
 export type PartnerQualification = 'Qualifié' | 'Non qualifié';
 
 export type PartnerGrade = 
+  | 'Sans grade'
   | 'Directeur'
   | 'Directeur Régional'
   | 'Directeur National'
@@ -94,6 +95,7 @@ export type PartnerGrade =
   | 'Ruby';
 
 export const PARTNER_GRADES: PartnerGrade[] = [
+  'Sans grade',
   'Directeur',
   'Directeur Régional',
   'Directeur National',

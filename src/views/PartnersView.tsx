@@ -78,7 +78,7 @@ export const PartnersView: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [sponsorId, setSponsorId] = useState('');
-  const [level, setLevel] = useState<string>('Directeur');
+  const [level, setLevel] = useState<string>('Sans grade');
   const [initialPv, setInitialPv] = useState<number>(500);
   const [cardStatus, setCardStatus] = useState<PartnerCardStatus>('Start');
   const [qualificationStatus, setQualificationStatus] = useState<PartnerQualification>('Qualifié');
@@ -90,7 +90,7 @@ export const PartnersView: React.FC = () => {
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editSponsorId, setEditSponsorId] = useState('');
-  const [editLevel, setEditLevel] = useState<string>('Directeur');
+  const [editLevel, setEditLevel] = useState<string>('Sans grade');
   const [editCardStatus, setEditCardStatus] = useState<PartnerCardStatus>('Start');
   const [editQualificationStatus, setEditQualificationStatus] = useState<PartnerQualification>('Qualifié');
   const [editTotalPv, setEditTotalPv] = useState<number>(500);
@@ -134,7 +134,7 @@ export const PartnersView: React.FC = () => {
     setPhone('');
     setEmail('');
     setSponsorId('');
-    setLevel('Directeur');
+    setLevel('Sans grade');
     setInitialPv(500);
     setCardStatus('Start');
     setQualificationStatus('Qualifié');
@@ -171,7 +171,7 @@ export const PartnersView: React.FC = () => {
     setEditPhone(p.phone);
     setEditEmail(p.email || '');
     setEditSponsorId(p.sponsorId || '');
-    setEditLevel(p.level || 'Directeur');
+    setEditLevel(p.level || 'Sans grade');
     setEditCardStatus(p.cardStatus || 'Start');
     setEditQualificationStatus(p.qualificationStatus || 'Qualifié');
     setEditTotalPv(p.totalPv);
