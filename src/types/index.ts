@@ -260,14 +260,18 @@ export type ProductCategory =
   | 'entretien' 
   | 'alimentation' 
   | 'soins' 
+  | 'appareils'
   | 'services';
 
 export interface ProductService {
   id: string;
-  sku: string; // Code Produit unique auto-généré (ex: WH-REG-084)
+  sku: string; // Code Produit unique (ex: F001, BA-02, WH-REG-084)
+  code?: string; // Code officiel de la grille tarifaire (ex: F001, BA-02)
   name: string;
   category: ProductCategory;
-  patientPrice: number; // Prix Patient (Prix de vente standard)
+  categoryId?: string; // Identifiant normalisé de la catégorie pour Supabase
+  patientPrice: number; // Prix Patient / Prix Public (Prix de vente standard)
+  publicPrice?: number; // Alias explicite pour Prix Public
   partnerPrice: number; // Prix Partenaire (Prix d'achat réseau)
   directMargin: number; // Gain direct calculé: patientPrice - partnerPrice
   pv: number; // Points de Valeur

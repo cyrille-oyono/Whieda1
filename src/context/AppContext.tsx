@@ -14,6 +14,7 @@ import {
   INITIAL_COMPANY_SETTINGS, INITIAL_APPOINTMENTS, INITIAL_PARTNER_APPLICATIONS,
   INITIAL_ASSOCIATED_CENTERS, INITIAL_EXPENSES, INITIAL_PARTNER_PAYOUTS, INITIAL_AUDIT_LOGS
 } from '../data/mockData';
+import { syncOfficialProductsList, OFFICIAL_PRODUCTS_APP_SERVICES } from '../data/officialProducts';
 
 interface AppContextType {
   currentUser: User;
@@ -81,6 +82,7 @@ interface AppContextType {
   deleteProduct: (id: string) => void;
   restockProduct: (productId: string, quantityToAdd: number, notes?: string) => void;
   batchRestockProducts: (items: { productId: string; quantity: number }[], notes?: string) => void;
+  seedOfficialCatalog: (mode?: 'merge' | 'reset_all') => void;
 
   // POS Sales
   sales: Sale[];
@@ -194,7 +196,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [products, setProducts] = useState<ProductService[]>(() => {
     const saved = localStorage.getItem('whieda_products');
-    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+    if (saved) {
+      try {
+        const parsed: ProductService[] = JSON.parse(saved);
+        // Garantit que les 28 produits de la grille tarifaire officielle sont synchronisés
+        return syncOfficialProductsList(parsed);
+      } catch (e) {
+        console.error('Erreur chargement produits:', e);
+        return INITIAL_PRODUCTS;
+      }
+    }
+    return INITIAL_PRODUCTS;
   });
 
   const [sales, setSales] = useState<Sale[]>(() => {
@@ -711,7 +723,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Products & Services
-  const addProduct = (data: Omit<ProductService, 'id' | 'sku' | 'directMargin'> & { customSku?: string }) => {
+  const addProduct = (data: Omit<ProductService, 'id' | 'sku' | 'directMargin'> & { customSku?: string; code?: string }) => {
     // Auto-generate SKU based on category
     let prefix = 'WH-GEN';
     if (data.category === 'regulateur') prefix = 'WH-REG';
@@ -719,20 +731,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (data.category === 'entretien') prefix = 'WH-ENT';
     if (data.category === 'alimentation') prefix = 'WH-ALM';
     if (data.category === 'soins') prefix = 'WH-SOI';
+    if (data.category === 'appareils') prefix = 'WH-APP';
     if (data.category === 'services') prefix = 'WH-SRV';
 
     const randomSuffix = Math.floor(100 + Math.random() * 900);
-    const sku = data.customSku ? data.customSku.toUpperCase() : `${prefix}-${randomSuffix}`;
+    const sku = data.customSku ? data.customSku.toUpperCase() : (data.code ? data.code.toUpperCase() : `${prefix}-${randomSuffix}`);
     const directMargin = Math.max(0, data.patientPrice - data.partnerPrice);
-
 
     const newProduct: ProductService = {
       ...data,
       id: `prod-${Date.now()}`,
+      code: data.code || sku,
       sku,
+      publicPrice: data.patientPrice,
       directMargin,
     };
     setProducts(prev => [newProduct, ...prev]);
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Création produit au catalogue',
+      module: 'Ventes',
+      details: `Ajout du produit "${newProduct.name}" (Code/SKU: ${sku}, Prix Public: ${data.patientPrice} FCFA, PV: ${data.pv})`,
+      severity: 'info',
+    });
+  };
+
+  const seedOfficialCatalog = (mode: 'merge' | 'reset_all' = 'merge') => {
+    if (mode === 'reset_all') {
+      setProducts(INITIAL_PRODUCTS);
+      localStorage.setItem('whieda_products', JSON.stringify(INITIAL_PRODUCTS));
+    } else {
+      setProducts(prev => {
+        const synced = syncOfficialProductsList(prev);
+        localStorage.setItem('whieda_products', JSON.stringify(synced));
+        return synced;
+      });
+    }
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Initialisation grille tarifaire officielle',
+      module: 'Ventes',
+      details: `Synchronisation automatique des 28 produits officiels Whieda Meyomessala (mode: ${mode})`,
+      severity: 'info',
+    });
   };
 
   const updateProduct = (id: string, updates: Partial<ProductService>) => {
@@ -1259,6 +1306,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deleteProduct,
       restockProduct,
       batchRestockProducts,
+      seedOfficialCatalog,
       sales,
       completeSale,
       updateSale,

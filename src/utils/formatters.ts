@@ -33,15 +33,17 @@ export const getRoleLabel = (role: UserRole): string => {
 export const getCategoryLabel = (category: ProductCategory): string => {
   switch (category) {
     case 'regulateur':
-      return 'Régulateur';
+      return 'Régulateur & Équilibre';
     case 'nettoyage':
-      return 'Nettoyage';
+      return 'Nettoyage & Détox';
     case 'entretien':
-      return 'Entretien';
+      return 'Entretien & Vitalité';
     case 'alimentation':
-      return 'Alimentation';
+      return 'Alimentation & Nutrition';
     case 'soins':
-      return 'Soins';
+      return 'Soins & Bien-être';
+    case 'appareils':
+      return 'Appareils & Dispositifs';
     case 'services':
       return 'Services & Bilans';
     default:

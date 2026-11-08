@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { SUPABASE_SCHEMA_SQL, NEXTJS_PROJECT_TREE } from '../data/schema_sql';
+import { SUPABASE_OFFICIAL_PRODUCTS_SEED_SQL, OFFICIAL_PRODUCTS_CATALOG } from '../data/officialProducts';
+import { formatMoney, formatPV } from '../utils/formatters';
 import { 
   Database, 
   FolderTree, 
@@ -9,11 +11,14 @@ import {
   ShieldCheck, 
   FileCode, 
   Terminal,
-  ExternalLink
+  ExternalLink,
+  Package,
+  Layers,
+  Sparkles
 } from 'lucide-react';
 
 export const SupabaseArchitectureView: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'sql' | 'tree' | 'triggers' | 'rls'>('sql');
+  const [activeTab, setActiveTab] = useState<'sql' | 'seed' | 'tree' | 'triggers' | 'rls'>('seed');
   const [copied, setCopied] = useState(false);
 
   const handleCopy = (text: string) => {
@@ -46,10 +51,22 @@ export const SupabaseArchitectureView: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-neutral-200 shadow-xs">
+      <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-neutral-200 shadow-xs flex-wrap">
+        <button
+          onClick={() => setActiveTab('seed')}
+          className={`flex-1 min-w-[170px] py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'seed'
+              ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-xs'
+              : 'text-neutral-700 hover:text-neutral-900 bg-neutral-50 hover:bg-neutral-100'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-amber-300" />
+          <span>Grille Tarifaire (28 Produits Seed)</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('sql')}
-          className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[150px] py-2 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 ${
             activeTab === 'sql'
               ? 'bg-neutral-900 text-white shadow-xs'
               : 'text-neutral-600 hover:text-neutral-900'
@@ -97,6 +114,95 @@ export const SupabaseArchitectureView: React.FC = () => {
       </div>
 
       {/* Content based on Active Tab */}
+      {activeTab === 'seed' && (
+        <div className="space-y-6">
+          {/* Card Overview */}
+          <div className="bg-white rounded-xl border border-neutral-200 shadow-xs p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                  <Package className="w-4 h-4 text-orange-600" />
+                  <span>Script de Migration / Insertion en Masse (Seed) Supabase</span>
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  Initialisation des 28 produits certifiés avec colonnes : <code className="font-mono text-orange-600 bg-orange-50 px-1 py-0.5 rounded">code</code>, <code className="font-mono text-orange-600 bg-orange-50 px-1 py-0.5 rounded">name</code>, <code className="font-mono text-orange-600 bg-orange-50 px-1 py-0.5 rounded">partner_price</code>, <code className="font-mono text-orange-600 bg-orange-50 px-1 py-0.5 rounded">public_price</code>, <code className="font-mono text-orange-600 bg-orange-50 px-1 py-0.5 rounded">pv</code>, <code className="font-mono text-orange-600 bg-orange-50 px-1 py-0.5 rounded">category_id</code>
+                </p>
+              </div>
+
+              <button
+                onClick={() => handleCopy(SUPABASE_OFFICIAL_PRODUCTS_SEED_SQL)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg text-xs font-semibold shadow-xs transition-all whitespace-nowrap shrink-0"
+              >
+                {copied ? <Check className="w-4 h-4 text-white" /> : <Copy className="w-4 h-4" />}
+                <span>{copied ? 'SQL Copié !' : 'Copier le Script Seed SQL'}</span>
+              </button>
+            </div>
+
+            {/* Visual Table of the 28 Products */}
+            <div className="border border-neutral-200 rounded-lg overflow-hidden">
+              <div className="px-4 py-2 bg-neutral-50 border-b border-neutral-200 text-xs font-bold text-neutral-700 flex items-center justify-between">
+                <span>Aperçu des 28 Produits Officiels à Insérer</span>
+                <span className="text-[11px] font-mono text-neutral-500">28 références actives</span>
+              </div>
+              <div className="overflow-x-auto max-h-72">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-neutral-100/70 text-neutral-600 font-semibold border-b border-neutral-200 sticky top-0">
+                    <tr>
+                      <th className="py-2 px-3">#</th>
+                      <th className="py-2 px-3">Code</th>
+                      <th className="py-2 px-3">Désignation</th>
+                      <th className="py-2 px-3">Catégorie assignée</th>
+                      <th className="py-2 px-3 text-right">Prix Partenaire</th>
+                      <th className="py-2 px-3 text-right">Prix Public</th>
+                      <th className="py-2 px-3 text-right">Bénéfice Net</th>
+                      <th className="py-2 px-3 text-right">PV</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-200 text-neutral-700">
+                    {OFFICIAL_PRODUCTS_CATALOG.map((item, idx) => (
+                      <tr key={item.code + idx} className="hover:bg-neutral-50">
+                        <td className="py-2 px-3 font-mono text-neutral-400">{idx + 1}</td>
+                        <td className="py-2 px-3 font-mono font-bold text-neutral-900">{item.code}</td>
+                        <td className="py-2 px-3 font-semibold text-neutral-900">{item.name}</td>
+                        <td className="py-2 px-3">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-700 border border-neutral-200">
+                            {item.category_name} ({item.category_id})
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono text-neutral-600">{formatMoney(item.partner_price)}</td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-neutral-900">{formatMoney(item.public_price)}</td>
+                        <td className="py-2 px-3 text-right font-mono font-semibold text-emerald-700">+{formatMoney(item.public_price - item.partner_price)}</td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">{formatPV(item.pv)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* SQL Editor Code Block */}
+          <div className="bg-neutral-950 rounded-xl border border-neutral-800 shadow-lg overflow-hidden text-neutral-100 font-mono text-xs">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-neutral-900 border-b border-neutral-800 text-[11px] text-neutral-400">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-3.5 h-3.5 text-orange-400" />
+                <span>seed_official_products.sql · PostgreSQL Supabase Script</span>
+              </div>
+              <button
+                onClick={() => handleCopy(SUPABASE_OFFICIAL_PRODUCTS_SEED_SQL)}
+                className="hover:text-white transition-colors flex items-center gap-1"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{copied ? 'Copié !' : 'Copier'}</span>
+              </button>
+            </div>
+            <pre className="p-4 overflow-x-auto max-h-[500px] leading-relaxed text-[11px] text-orange-100">
+              {SUPABASE_OFFICIAL_PRODUCTS_SEED_SQL}
+            </pre>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'sql' && (
         <div className="bg-neutral-950 rounded-xl border border-neutral-800 shadow-lg overflow-hidden text-neutral-100 font-mono text-xs">
           <div className="flex items-center justify-between px-4 py-2.5 bg-neutral-900 border-b border-neutral-800 text-[11px] text-neutral-400">
