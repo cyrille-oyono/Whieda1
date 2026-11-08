@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useApp } from '../context/AppContext';
 import { UserRole } from '../types';
 import { 
@@ -7,10 +7,10 @@ import {
   Stethoscope, 
   Calculator, 
   LogOut, 
-  ChevronDown,
-  Sparkles,
-  Globe,
-  ShoppingCart
+  Globe, 
+  ShoppingCart,
+  Lock,
+  User
 } from 'lucide-react';
 import { getRoleLabel } from '../utils/formatters';
 
@@ -19,8 +19,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal }) => {
-  const { currentUser, switchRole, logout, companySettings, roles: appRoles } = useApp();
-  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const { currentUser, logout, companySettings, roles: appRoles } = useApp();
 
   const predefinedRoles: { role: UserRole; label: string; icon: React.ReactNode; color: string }[] = [
     { role: 'visitor', label: 'Visiteur (Vitrine)', icon: <Globe className="w-4 h-4 text-emerald-600" />, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -44,16 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal }) => {
   };
 
   const currentRoleConfig = getRoleBadge(currentUser.role);
-
-  // Combine roles for quick switch
-  const allRolesList = appRoles.map(r => {
-    const pre = predefinedRoles.find(pr => pr.role === r.id);
-    return {
-      role: r.id as UserRole,
-      label: r.name,
-      icon: pre?.icon || <UserCheck className="w-4 h-4 text-blue-600" />,
-    };
-  });
+  const isVisitor = currentUser.role === 'visitor';
 
   return (
     <header className="h-16 bg-white border-b border-neutral-200 px-6 flex items-center justify-between gap-8 z-30 sticky top-0 no-print">
@@ -67,83 +57,62 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal }) => {
             <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent whitespace-nowrap">
               {companySettings?.name || 'Whieda Meyomessala'}
             </span>
-            <span className="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 font-semibold tracking-wide uppercase">
-              Pro
+            <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold tracking-wide uppercase ${
+              isVisitor ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800'
+            }`}>
+              {isVisitor ? 'Vitrine' : 'Pro'}
             </span>
           </div>
           <span className="text-[11px] text-neutral-500 leading-none">
-            Santé · Pharmacie · MLM Partenaires
+            {isVisitor ? 'Espace Découverte & Soins' : 'Santé · Pharmacie · MLM Partenaires'}
           </span>
         </div>
       </div>
 
-      {/* Zone 2: Navigation contextual info & quick role badge */}
+      {/* Zone 2: Navigation contextual info */}
       <div className="hidden lg:flex items-center gap-4 text-xs text-neutral-500">
         <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-50 rounded-lg border border-neutral-200">
-          <span className="text-neutral-400 font-medium">Session active :</span>
+          <span className="text-neutral-400 font-medium">Session :</span>
           <span className="font-semibold text-neutral-800">{currentUser.fullName}</span>
           <span className="text-neutral-300">·</span>
-          <span className="text-neutral-600">{currentUser.department || 'Poste opérationnel'}</span>
+          <span className="text-neutral-600">{currentUser.department || (isVisitor ? 'Accès Public' : 'Collaborateur')}</span>
         </div>
 
-        <div className="relative">
-          <button
-            onClick={() => setRoleMenuOpen(!roleMenuOpen)}
-            className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all ${currentRoleConfig.color} hover:shadow-xs`}
-            title="Changer de rôle pour tester les permissions RBAC"
-          >
-            {currentRoleConfig.icon}
-            <span>Rôle : {currentRoleConfig.label}</span>
-            <ChevronDown className="w-3.5 h-3.5 opacity-70" />
-          </button>
-
-          {roleMenuOpen && (
-            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-neutral-200 py-1.5 z-50">
-              <div className="px-3 py-1.5 border-b border-neutral-100 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider flex items-center justify-between">
-                <span>Tester un autre profil (RBAC)</span>
-                <Sparkles className="w-3 h-3 text-orange-500" />
-              </div>
-              {allRolesList.map(r => (
-                <button
-                  key={r.role}
-                  onClick={() => {
-                    switchRole(r.role);
-                    setRoleMenuOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-neutral-50 transition-colors ${
-                    currentUser.role === r.role ? 'font-semibold text-orange-600 bg-orange-50/50' : 'text-neutral-700'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    {r.icon}
-                    <span>{r.label}</span>
-                  </div>
-                  {currentUser.role === r.role && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-600"></span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+        <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-semibold ${currentRoleConfig.color}`}>
+          {currentRoleConfig.icon}
+          <span>{currentRoleConfig.label}</span>
         </div>
       </div>
 
-      {/* Zone 3: Primary Action / User Account */}
-      <div className="flex items-center gap-3 shrink-0">
-        <button
-          onClick={onOpenLoginModal}
-          className="hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition-colors whitespace-nowrap"
-        >
-          <UserCheck className="w-4 h-4 text-neutral-600" />
-          <span>Changer de compte</span>
-        </button>
+      {/* Zone 3: Actions */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {isVisitor ? (
+          /* Visitor View: Button to switch to Employee Login */
+          <button
+            onClick={onOpenLoginModal}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 rounded-lg shadow-xs transition-all whitespace-nowrap"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Espace Collaborateur</span>
+          </button>
+        ) : (
+          /* Employee View: Change Account */
+          <button
+            onClick={onOpenLoginModal}
+            className="hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition-colors whitespace-nowrap"
+          >
+            <UserCheck className="w-4 h-4 text-neutral-600" />
+            <span>Changer de compte</span>
+          </button>
+        )}
 
         <button
           onClick={logout}
-          title="Déconnexion"
-          className="p-2 text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          title={isVisitor ? 'Quitter la vitrine' : 'Se déconnecter'}
+          className="inline-flex items-center gap-1.5 p-2 text-neutral-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-xs font-medium"
         >
           <LogOut className="w-4 h-4" />
+          <span className="hidden md:inline">{isVisitor ? 'Quitter' : 'Déconnexion'}</span>
         </button>
       </div>
     </header>

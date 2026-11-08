@@ -19,6 +19,8 @@ import { syncOfficialProductsList, OFFICIAL_PRODUCTS_APP_SERVICES } from '../dat
 interface AppContextType {
   currentUser: User;
   setCurrentUser: (user: User) => void;
+  isAuthenticated: boolean;
+  loginAsVisitor: () => void;
   switchRole: (role: UserRole) => void;
   logout: () => void;
   loginAs: (identifier: string, passwordAttempt?: string) => { success: boolean; message?: string };
@@ -164,19 +166,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_USERS;
   });
 
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('whieda_auth_state') === 'authenticated';
+  });
+
   const [currentUser, setCurrentUser] = useState<User>(() => {
+    const isAuth = localStorage.getItem('whieda_auth_state') === 'authenticated';
     const saved = localStorage.getItem('whieda_current_user');
-    if (saved) {
+    if (isAuth && saved) {
       try {
         const parsed: User = JSON.parse(saved);
-        if (parsed && (parsed.fullName.toLowerCase().includes('cyrille') || parsed.role === 'admin')) {
-          return parsed;
-        }
+        if (parsed) return parsed;
       } catch (e) {
         // fallback
       }
     }
-    return INITIAL_USERS[0]; // Cyrille OYONO (Admin) by default
+    const visitor = INITIAL_USERS.find(u => u.role === 'visitor') || INITIAL_USERS[4];
+    return visitor;
   });
 
   const [partners, setPartners] = useState<Partner[]>(() => {
@@ -354,10 +360,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, message: 'Veuillez saisir votre identifiant (numéro de téléphone ou email).' };
     }
 
+    if (!passwordAttempt || passwordAttempt.trim() === '') {
+      return { success: false, message: 'Veuillez saisir votre mot de passe alphanumérique.' };
+    }
+
     const cleanInputPhone = normalizePhone(rawTrimmed);
 
     const found = users.find(u => {
-      const matchEmail = u.email.toLowerCase() === rawTrimmed.toLowerCase();
+      const matchEmail = u.email && u.email.toLowerCase() === rawTrimmed.toLowerCase();
       const matchPhone = cleanInputPhone && normalizePhone(u.phone) === cleanInputPhone;
       return matchEmail || matchPhone;
     });
@@ -365,35 +375,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!found) {
       return { 
         success: false, 
-        message: 'Identifiant introuvable. Veuillez renseigner votre numéro de téléphone (ex: 699001122) ou votre adresse email.' 
+        message: 'Identifiant introuvable. Veuillez vérifier votre numéro de téléphone (ex: 699001122) ou votre adresse email.' 
       };
     }
 
     if (!found.active) {
       return { 
         success: false, 
-        message: 'Ce compte employé a été désactivé par l’administrateur.' 
+        message: 'Ce compte employé a été désactivé par la direction.' 
       };
     }
 
-    // Verify alphanumeric password if provided
-    if (passwordAttempt !== undefined && passwordAttempt.trim() !== '') {
-      const targetPass = (found.password || 'Whieda@2026!').trim();
-      if (passwordAttempt.trim().toUpperCase() !== targetPass.toUpperCase()) {
-        return { 
-          success: false, 
-          message: 'Mot de passe alphanumérique incorrect.' 
-        };
-      }
+    // Strict alphanumeric password verification
+    const targetPass = (found.password || 'Whieda@2026!').trim();
+    if (passwordAttempt.trim().toUpperCase() !== targetPass.toUpperCase()) {
+      return { 
+        success: false, 
+        message: 'Mot de passe alphanumérique incorrect.' 
+      };
     }
 
     setCurrentUser(found);
+    setIsAuthenticated(true);
+    localStorage.setItem('whieda_auth_state', 'authenticated');
+    localStorage.setItem('whieda_current_user', JSON.stringify(found));
+
+    addAuditLog({
+      userId: found.id,
+      userName: found.fullName,
+      userRole: found.role,
+      action: 'Connexion collaborateur réussie',
+      module: 'Sécurité',
+      details: `Authentification réussie pour ${found.fullName} (${found.role})`,
+      severity: 'info',
+    });
+
     return { success: true };
   };
 
+  const loginAsVisitor = () => {
+    const visitor = users.find(u => u.role === 'visitor') || INITIAL_USERS.find(u => u.role === 'visitor') || INITIAL_USERS[4];
+    setCurrentUser(visitor);
+    setIsAuthenticated(true);
+    localStorage.setItem('whieda_auth_state', 'authenticated');
+    localStorage.setItem('whieda_current_user', JSON.stringify(visitor));
+  };
+
   const logout = () => {
-    const visitorUser = users.find(u => u.role === 'visitor') || users[0];
-    setCurrentUser(visitorUser);
+    setIsAuthenticated(false);
+    localStorage.removeItem('whieda_auth_state');
+    localStorage.removeItem('whieda_current_user');
+    const visitor = users.find(u => u.role === 'visitor') || INITIAL_USERS.find(u => u.role === 'visitor') || INITIAL_USERS[4];
+    setCurrentUser(visitor);
   };
 
   // Reset to default credentials as requested by user
@@ -1263,6 +1296,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider value={{
       currentUser,
       setCurrentUser,
+      isAuthenticated,
+      loginAsVisitor,
       switchRole,
       logout,
       loginAs,

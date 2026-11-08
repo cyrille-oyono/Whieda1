@@ -198,8 +198,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
         })}
       </nav>
 
-      {/* Low Stock Quick Warning in Sidebar */}
-      {lowStockCount > 0 && (
+      {/* Low Stock Quick Warning in Sidebar for Staff only */}
+      {currentUser.role !== 'visitor' && lowStockCount > 0 && (
         <div className="p-3 m-3 bg-amber-50 rounded-xl border border-amber-200 text-xs">
           <div className="flex items-center gap-2 text-amber-800 font-semibold mb-1">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -207,6 +207,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
           </div>
           <p className="text-[11px] text-amber-700">
             Articles proches de la rupture. Vérifiez les commandes fournisseurs.
+          </p>
+        </div>
+      )}
+
+      {/* Visitor Notice */}
+      {currentUser.role === 'visitor' && (
+        <div className="p-3 m-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs">
+          <div className="flex items-center gap-2 text-emerald-800 font-semibold mb-1">
+            <Globe className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>Espace Vitrine Public</span>
+          </div>
+          <p className="text-[11px] text-emerald-700">
+            Découvrez nos soins, nos 28 produits certifiés et nos centres associés.
           </p>
         </div>
       )}

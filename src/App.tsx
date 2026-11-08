@@ -16,11 +16,17 @@ import { FinancialAuditView } from './views/FinancialAuditView';
 import { AuditLogView } from './views/AuditLogView';
 import { StockView } from './views/StockView';
 import { LoginModal } from './views/LoginModal';
+import { AuthGatewayView } from './views/AuthGatewayView';
 
 function MainLayout() {
-  const { currentUser, isTabAllowedForRole, roles } = useApp();
+  const { isAuthenticated, currentUser, isTabAllowedForRole, roles } = useApp();
   const [activeTab, setActiveTab] = useState<NavTab>('showcase');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  // Conditionner l'accès par connexion sécurisée dès l'arrivée sur l'application
+  if (!isAuthenticated) {
+    return <AuthGatewayView onOpenEmployeeModal={() => setIsLoginModalOpen(true)} />;
+  }
 
   // Fallback role permissions
   const rolePermissions: Record<NavTab, string[]> = {
