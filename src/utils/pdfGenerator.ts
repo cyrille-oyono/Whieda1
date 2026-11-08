@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import { Sale, CompanySettings, Partner, Visit, PartnerPayoutRecord } from '../types';
+import { Sale, CompanySettings, Partner, Visit, PartnerPayoutRecord, ProductService } from '../types';
 import { formatMoney, formatPV } from './formatters';
 
 export const generateInvoicePDF = (sale: Sale, companySettings?: CompanySettings): void => {
@@ -1683,5 +1683,259 @@ export const generatePartnerPayoutsReportPDF = (
 
   const nowFile = new Date().toISOString().split('T')[0];
   doc.save(`Etat_Paiements_Partenaires_Whieda_${nowFile}.pdf`);
+};
+
+export interface StockOrderPDFItem {
+  sku: string;
+  name: string;
+  category: string;
+  currentStock: number;
+  orderQuantity: number;
+  unitPrice: number; // Prix U Patient
+  partnerPrice: number; // Prix Partenaire (coût d'achat)
+  totalPrice: number;
+}
+
+export const generateStockOrderPDF = (
+  orderNumber: string,
+  items: StockOrderPDFItem[],
+  companySettings?: CompanySettings,
+  notes?: string
+): void => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  let currentY = 14;
+
+  // 1. Top Decorative Brand Bar
+  doc.setFillColor(234, 88, 12); // Orange-600
+  doc.rect(margin, currentY, pageWidth - (margin * 2), 3, 'F');
+  currentY += 8;
+
+  // 2. Company Info & Title
+  const compName = companySettings?.name || 'WHIEDA MEYOMESSALA';
+  const compTagline = companySettings?.tagline || 'Cabinet de Santé, Pharmacie Naturelle & Prospérité Partagée';
+  const compAddress = companySettings?.address || 'Boulevard de la Liberté, Akwa - Douala, Cameroun';
+  const compPhone = companySettings?.phone || '(+237) 699 00 11 22';
+  const compEmail = companySettings?.email || 'contact@whiedasmart.com';
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(220, 38, 38);
+  doc.text(compName, margin, currentY);
+
+  doc.setFontSize(14);
+  doc.setTextColor(30, 41, 59);
+  doc.text('BON DE COMMANDE DE RÉAPPROVISIONNEMENT', pageWidth - margin, currentY, { align: 'right' });
+  currentY += 5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(compTagline, margin, currentY);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10.5);
+  doc.setTextColor(234, 88, 12);
+  doc.text(`Réf. Commande : ${orderNumber}`, pageWidth - margin, currentY, { align: 'right' });
+  currentY += 4.5;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(compAddress, margin, currentY);
+  doc.text(`Date d'émission : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`, pageWidth - margin, currentY, { align: 'right' });
+  currentY += 4;
+
+  doc.text(`Tél : ${compPhone} · Email : ${compEmail}`, margin, currentY);
+  doc.text('Statut : Validé pour Approvisionnement', pageWidth - margin, currentY, { align: 'right' });
+  currentY += 8;
+
+  // Decorative Line
+  doc.setDrawColor(226, 232, 240);
+  doc.line(margin, currentY, pageWidth - margin, currentY);
+  currentY += 6;
+
+  // 3. Summary Info Boxes
+  const totalItemsCount = items.reduce((sum, item) => sum + item.orderQuantity, 0);
+  const totalAmount = items.reduce((sum, item) => sum + item.totalPrice, 0);
+  const outOfStockCount = items.filter(item => item.currentStock === 0).length;
+
+  const boxWidth = (pageWidth - (margin * 2) - 8) / 3;
+  
+  // Box 1
+  doc.setFillColor(254, 242, 242);
+  doc.roundedRect(margin, currentY, boxWidth, 14, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(185, 28, 28);
+  doc.text('RÉFÉRENCES EN COMMANDE', margin + 3, currentY + 4.5);
+  doc.setFontSize(11);
+  doc.text(`${items.length} produit(s)`, margin + 3, currentY + 10.5);
+
+  // Box 2
+  doc.setFillColor(255, 247, 237);
+  doc.roundedRect(margin + boxWidth + 4, currentY, boxWidth, 14, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(194, 65, 12);
+  doc.text('TOTAL UNITÉS À COMMANDER', margin + boxWidth + 7, currentY + 4.5);
+  doc.setFontSize(11);
+  doc.text(`${totalItemsCount.toLocaleString('fr-FR')} unités`, margin + boxWidth + 7, currentY + 10.5);
+
+  // Box 3
+  doc.setFillColor(240, 253, 244);
+  doc.roundedRect(margin + (boxWidth * 2) + 8, currentY, boxWidth, 14, 2, 2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(21, 128, 61);
+  doc.text('VALEUR TOTALE (PRIX PATIENT)', margin + (boxWidth * 2) + 11, currentY + 4.5);
+  doc.setFontSize(11);
+  doc.text(formatMoney(totalAmount), margin + (boxWidth * 2) + 11, currentY + 10.5);
+
+  currentY += 19;
+
+  // 4. Items Table
+  const tableHeaders = [
+    { label: '#', x: margin + 1, width: 8 },
+    { label: 'Réf. SKU', x: margin + 9, width: 26 },
+    { label: 'Désignation Produit & Catégorie', x: margin + 35, width: 68 },
+    { label: 'Stock Actuel', x: margin + 103, width: 22, align: 'center' },
+    { label: 'Qté Comm.', x: margin + 125, width: 22, align: 'center' },
+    { label: 'Prix U Patient', x: margin + 147, width: 26, align: 'right' },
+    { label: 'Total Estimé', x: margin + 173, width: 25, align: 'right' },
+  ];
+
+  // Header background
+  doc.setFillColor(30, 41, 59);
+  doc.rect(margin, currentY, pageWidth - (margin * 2), 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(255, 255, 255);
+
+  tableHeaders.forEach(col => {
+    if (col.align === 'right') {
+      doc.text(col.label, col.x + col.width, currentY + 4.8, { align: 'right' });
+    } else if (col.align === 'center') {
+      doc.text(col.label, col.x + (col.width / 2), currentY + 4.8, { align: 'center' });
+    } else {
+      doc.text(col.label, col.x, currentY + 4.8);
+    }
+  });
+
+  currentY += 7;
+
+  // Table rows
+  items.forEach((item, index) => {
+    if (currentY > pageHeight - 35) {
+      doc.addPage();
+      currentY = 15;
+    }
+
+    const isEven = index % 2 === 0;
+    doc.setFillColor(isEven ? 255 : 248, isEven ? 255 : 250, isEven ? 255 : 252);
+    doc.rect(margin, currentY, pageWidth - (margin * 2), 6.5, 'F');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+
+    // Index
+    doc.text(String(index + 1), tableHeaders[0].x + 1, currentY + 4.5);
+
+    // SKU
+    doc.setFont('helvetica', 'bold');
+    doc.text(item.sku, tableHeaders[1].x, currentY + 4.5);
+
+    // Name (truncated)
+    doc.setFont('helvetica', 'normal');
+    const truncatedName = item.name.length > 36 ? item.name.slice(0, 34) + '...' : item.name;
+    doc.text(truncatedName, tableHeaders[2].x, currentY + 4.5);
+
+    // Current Stock (highlight if 0)
+    if (item.currentStock === 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(220, 38, 38);
+      doc.text('0 (Rupture)', tableHeaders[3].x + (tableHeaders[3].width / 2), currentY + 4.5, { align: 'center' });
+    } else {
+      doc.setTextColor(71, 85, 105);
+      doc.text(String(item.currentStock), tableHeaders[3].x + (tableHeaders[3].width / 2), currentY + 4.5, { align: 'center' });
+    }
+
+    // Order Quantity
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(234, 88, 12);
+    doc.text(String(item.orderQuantity), tableHeaders[4].x + (tableHeaders[4].width / 2), currentY + 4.5, { align: 'center' });
+
+    // Unit Price Patient
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(formatMoney(item.unitPrice), tableHeaders[5].x + tableHeaders[5].width, currentY + 4.5, { align: 'right' });
+
+    // Total Price
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(formatMoney(item.totalPrice), tableHeaders[6].x + tableHeaders[6].width, currentY + 4.5, { align: 'right' });
+
+    // Border line
+    doc.setDrawColor(241, 245, 249);
+    doc.line(margin, currentY + 6.5, pageWidth - margin, currentY + 6.5);
+    currentY += 6.5;
+  });
+
+  // Table Total Footer Row
+  currentY += 2;
+  doc.setFillColor(241, 245, 249);
+  doc.rect(margin, currentY, pageWidth - (margin * 2), 7, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(30, 41, 59);
+  doc.text('TOTAL GÉNÉRAL DU BON DE COMMANDE :', margin + 4, currentY + 4.8);
+  doc.setTextColor(234, 88, 12);
+  doc.text(`${totalItemsCount.toLocaleString('fr-FR')} unités`, tableHeaders[4].x + (tableHeaders[4].width / 2), currentY + 4.8, { align: 'center' });
+  doc.setTextColor(16, 185, 129);
+  doc.text(formatMoney(totalAmount), tableHeaders[6].x + tableHeaders[6].width, currentY + 4.8, { align: 'right' });
+  currentY += 12;
+
+  // Notes
+  if (notes) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Instructions & Notes Particulières :', margin, currentY);
+    currentY += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(notes, margin, currentY, { maxWidth: pageWidth - (margin * 2) });
+    currentY += 10;
+  }
+
+  // Signatures on Bottom
+  if (currentY > pageHeight - 30) {
+    doc.addPage();
+    currentY = 20;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Le Responsable des Stocks & Caisse', margin + 20, currentY);
+  doc.text('La Direction Générale Whieda Meyomessala', pageWidth - margin - 85, currentY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(148, 163, 184);
+  doc.text('[Visa, Contrôle des Quantités & Date]', margin + 20, currentY + 5);
+  doc.text('[Visa, Cachet & Approbation de Commande]', pageWidth - margin - 85, currentY + 5);
+
+  const fileDate = new Date().toISOString().split('T')[0];
+  doc.save(`Bon_de_Commande_${orderNumber}_Whieda_${fileDate}.pdf`);
 };
 

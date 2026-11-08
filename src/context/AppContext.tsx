@@ -74,11 +74,13 @@ interface AppContextType {
   addVisit: (visit: Omit<Visit, 'id' | 'date' | 'time' | 'registeredBy' | 'status'> & { status?: VisitStatus }) => void;
   updateVisitStatus: (visitId: string, status: VisitStatus) => void;
 
-  // Products & Services
+  // Products & Services & Stock
   products: ProductService[];
   addProduct: (product: Omit<ProductService, 'id' | 'sku' | 'directMargin'> & { customSku?: string }) => void;
   updateProduct: (id: string, product: Partial<ProductService>) => void;
   deleteProduct: (id: string) => void;
+  restockProduct: (productId: string, quantityToAdd: number, notes?: string) => void;
+  batchRestockProducts: (items: { productId: string; quantity: number }[], notes?: string) => void;
 
   // POS Sales
   sales: Sale[];
@@ -748,6 +750,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setProducts(prev => prev.filter(p => p.id !== id));
   };
 
+  const restockProduct = (productId: string, quantityToAdd: number, notes?: string) => {
+    if (quantityToAdd <= 0) return;
+    const target = products.find(p => p.id === productId);
+    if (!target) return;
+
+    setProducts(prev => prev.map(p => {
+      if (p.id === productId) {
+        const newQty = p.stockQuantity + quantityToAdd;
+        const newTotal = (p.totalStockReceived ?? p.stockQuantity) + quantityToAdd;
+        return {
+          ...p,
+          stockQuantity: newQty,
+          totalStockReceived: newTotal,
+        };
+      }
+      return p;
+    }));
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Ravitaillement de stock',
+      module: 'Ventes',
+      details: `Ravitaillement de ${quantityToAdd} unité(s) pour "${target.name}" (${target.sku}). Nouveau stock disponible : ${target.stockQuantity + quantityToAdd}${notes ? ` - Réf/Note : ${notes}` : ''}`,
+      severity: 'info',
+    });
+  };
+
+  const batchRestockProducts = (items: { productId: string; quantity: number }[], notes?: string) => {
+    const validItems = items.filter(i => i.quantity > 0);
+    if (validItems.length === 0) return;
+
+    setProducts(prev => prev.map(p => {
+      const match = validItems.find(i => i.productId === p.id);
+      if (match) {
+        return {
+          ...p,
+          stockQuantity: p.stockQuantity + match.quantity,
+          totalStockReceived: (p.totalStockReceived ?? p.stockQuantity) + match.quantity,
+        };
+      }
+      return p;
+    }));
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Ravitaillement groupé de stock',
+      module: 'Ventes',
+      details: `Ravitaillement groupé de ${validItems.length} référence(s) de stock.${notes ? ` Note : ${notes}` : ''}`,
+      severity: 'info',
+    });
+  };
+
   // POS Checkout & Auto MLM Trigger
   const completeSale = (saleData: {
     patientId?: string;
@@ -1199,6 +1257,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addProduct,
       updateProduct,
       deleteProduct,
+      restockProduct,
+      batchRestockProducts,
       sales,
       completeSale,
       updateSale,

@@ -139,19 +139,19 @@ export const INITIAL_ROLES: RoleDefinition[] = [
   {
     id: 'admin',
     name: 'Administrateur',
-    description: 'Accès intégral à tous les modules : gestion des employés, journal d’audit, finances, caisse et paramètres généraux.',
+    description: 'Accès intégral à tous les modules : gestion des employés, journal d’audit, finances, gestion de stock, caisse et paramètres généraux.',
     isSystem: true,
     color: 'red',
-    allowedTabs: ['showcase', 'products', 'visits', 'medical', 'pos', 'suppliers', 'overview', 'partners', 'users', 'audit', 'database'],
+    allowedTabs: ['showcase', 'products', 'stock', 'visits', 'medical', 'pos', 'suppliers', 'overview', 'partners', 'users', 'audit', 'database'],
     createdAt: '2026-01-01T00:00:00Z',
   },
   {
     id: 'accountant',
     name: 'Comptable',
-    description: 'Gestion financière, trésorerie de l’entreprise, dépenses, suivi des règlements partenaires et stocks.',
+    description: 'Gestion financière, trésorerie de l’entreprise, dépenses, gestion de stock synchronisée, suivi des règlements partenaires et approvisionnements.',
     isSystem: false,
     color: 'amber',
-    allowedTabs: ['showcase', 'products', 'pos', 'suppliers', 'overview', 'partners'],
+    allowedTabs: ['showcase', 'products', 'stock', 'pos', 'suppliers', 'overview', 'partners'],
     createdAt: '2026-01-01T00:00:00Z',
   },
   {

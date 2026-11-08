@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   Globe,
   ShieldAlert,
-  Wallet
+  Wallet,
+  Boxes
 } from 'lucide-react';
 
 export type NavTab = 
@@ -23,6 +24,7 @@ export type NavTab =
   | 'visits' 
   | 'pos' 
   | 'products' 
+  | 'stock'
   | 'partners' 
   | 'medical' 
   | 'suppliers' 
@@ -69,6 +71,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
       label: 'Catalogue & Produits',
       icon: <Package className="w-4 h-4" />,
       allowedRoles: ['receptionist', 'doctor', 'cashier', 'accountant', 'admin'],
+      badge: lowStockCount > 0 ? lowStockCount : undefined,
+      badgeColor: 'bg-red-100 text-red-800',
+    },
+    {
+      id: 'stock',
+      label: 'Gestion de Stock & Ventes',
+      icon: <Boxes className="w-4 h-4" />,
+      allowedRoles: ['accountant', 'admin'],
       badge: lowStockCount > 0 ? lowStockCount : undefined,
       badgeColor: 'bg-red-100 text-red-800',
     },

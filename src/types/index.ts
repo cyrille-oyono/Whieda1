@@ -272,6 +272,8 @@ export interface ProductService {
   directMargin: number; // Gain direct calculé: patientPrice - partnerPrice
   pv: number; // Points de Valeur
   stockQuantity: number; // Quantité en stock (pour produits physiques, 9999 pour services)
+  initialStockQuantity?: number; // Quantité initiale
+  totalStockReceived?: number; // Quantité totale approvisionnée (initiale + ravitaillements)
   minStockThreshold: number; // Seuil d'alerte stock bas
   imageUrl?: string;
   description?: string;

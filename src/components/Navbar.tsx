@@ -19,10 +19,10 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal }) => {
-  const { currentUser, switchRole, logout, companySettings } = useApp();
+  const { currentUser, switchRole, logout, companySettings, roles: appRoles } = useApp();
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
 
-  const roles: { role: UserRole; label: string; icon: React.ReactNode; color: string }[] = [
+  const predefinedRoles: { role: UserRole; label: string; icon: React.ReactNode; color: string }[] = [
     { role: 'visitor', label: 'Visiteur (Vitrine)', icon: <Globe className="w-4 h-4 text-emerald-600" />, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     { role: 'receptionist', label: 'Réceptionniste (Accueil)', icon: <UserCheck className="w-4 h-4 text-orange-600" />, color: 'bg-orange-50 text-orange-700 border-orange-200' },
     { role: 'doctor', label: 'Médecin (Consultations)', icon: <Stethoscope className="w-4 h-4 text-rose-600" />, color: 'bg-rose-50 text-rose-700 border-rose-200' },
@@ -31,7 +31,29 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal }) => {
     { role: 'admin', label: 'Admin (Direction Générale)', icon: <ShieldCheck className="w-4 h-4 text-red-600" />, color: 'bg-red-50 text-red-700 border-red-200' },
   ];
 
-  const currentRoleConfig = roles.find(r => r.role === currentUser.role) || roles[0];
+  const getRoleBadge = (roleId: string) => {
+    const predefined = predefinedRoles.find(r => r.role === roleId);
+    if (predefined) return predefined;
+    const dynamicDef = appRoles.find(r => r.id === roleId);
+    return {
+      role: roleId as UserRole,
+      label: dynamicDef ? dynamicDef.name : roleId,
+      icon: <UserCheck className="w-4 h-4 text-blue-600" />,
+      color: 'bg-blue-50 text-blue-700 border-blue-200',
+    };
+  };
+
+  const currentRoleConfig = getRoleBadge(currentUser.role);
+
+  // Combine roles for quick switch
+  const allRolesList = appRoles.map(r => {
+    const pre = predefinedRoles.find(pr => pr.role === r.id);
+    return {
+      role: r.id as UserRole,
+      label: r.name,
+      icon: pre?.icon || <UserCheck className="w-4 h-4 text-blue-600" />,
+    };
+  });
 
   return (
     <header className="h-16 bg-white border-b border-neutral-200 px-6 flex items-center justify-between gap-8 z-30 sticky top-0 no-print">
@@ -71,7 +93,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal }) => {
             title="Changer de rôle pour tester les permissions RBAC"
           >
             {currentRoleConfig.icon}
-            <span>Rôle : {getRoleLabel(currentUser.role)}</span>
+            <span>Rôle : {currentRoleConfig.label}</span>
             <ChevronDown className="w-3.5 h-3.5 opacity-70" />
           </button>
 
@@ -81,7 +103,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLoginModal }) => {
                 <span>Tester un autre profil (RBAC)</span>
                 <Sparkles className="w-3 h-3 text-orange-500" />
               </div>
-              {roles.map(r => (
+              {allRolesList.map(r => (
                 <button
                   key={r.role}
                   onClick={() => {

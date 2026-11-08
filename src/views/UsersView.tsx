@@ -34,12 +34,14 @@ import {
   Truck,
   Wallet,
   ShieldAlert,
-  Database
+  Database,
+  Boxes
 } from 'lucide-react';
 
 const AVAILABLE_MODULES: { id: string; label: string; icon: React.ReactNode; description: string }[] = [
   { id: 'showcase', label: "Page d'Accueil Vitrine", icon: <Globe className="w-3.5 h-3.5" />, description: "Présentation des soins, pharmacie et rendez-vous" },
   { id: 'products', label: 'Catalogue & Produits', icon: <Package className="w-3.5 h-3.5" />, description: "Consultation et inventaire des produits" },
+  { id: 'stock', label: 'Gestion du Stock & Ventes', icon: <Boxes className="w-3.5 h-3.5" />, description: "Suivi des quantités, alertes de rupture, réapprovisionnement et commandes" },
   { id: 'visits', label: 'Registre des Visites', icon: <ClipboardList className="w-3.5 h-3.5" />, description: "Accueil des patients, orientation et parrainages" },
   { id: 'medical', label: 'Espace Médecin & Bilans', icon: <Stethoscope className="w-3.5 h-3.5" />, description: "Consultations, dossiers médicaux et examens" },
   { id: 'pos', label: 'Caisse & Factures', icon: <ShoppingCart className="w-3.5 h-3.5" />, description: "Encaissements comptoir, reçus et historique ventes" },

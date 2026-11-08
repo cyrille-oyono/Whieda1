@@ -14,6 +14,7 @@ import { SupabaseArchitectureView } from './views/SupabaseArchitectureView';
 import { ShowcaseView } from './views/ShowcaseView';
 import { FinancialAuditView } from './views/FinancialAuditView';
 import { AuditLogView } from './views/AuditLogView';
+import { StockView } from './views/StockView';
 import { LoginModal } from './views/LoginModal';
 
 function MainLayout() {
@@ -25,6 +26,7 @@ function MainLayout() {
   const rolePermissions: Record<NavTab, string[]> = {
     showcase: ['visitor', 'receptionist', 'doctor', 'cashier', 'accountant', 'admin'],
     products: ['receptionist', 'doctor', 'cashier', 'accountant', 'admin'],
+    stock: ['accountant', 'admin'],
     visits: ['receptionist', 'admin'],
     medical: ['doctor', 'admin'],
     pos: ['cashier', 'accountant', 'admin'],
@@ -83,6 +85,7 @@ function MainLayout() {
           {currentTab === 'visits' && <VisitsView />}
           {currentTab === 'pos' && <PosView />}
           {currentTab === 'products' && <ProductsView />}
+          {currentTab === 'stock' && <StockView />}
           {currentTab === 'partners' && <PartnersView />}
           {currentTab === 'medical' && <MedicalView />}
           {currentTab === 'suppliers' && <SupplierOrdersView />}
