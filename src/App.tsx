@@ -17,17 +17,11 @@ import { AuditLogView } from './views/AuditLogView';
 import { LoginModal } from './views/LoginModal';
 
 function MainLayout() {
-  const { currentUser } = useApp();
+  const { currentUser, isTabAllowedForRole, roles } = useApp();
   const [activeTab, setActiveTab] = useState<NavTab>('showcase');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
-  // Role permissions according to user specifications:
-  // - Visiteurs : Page d'accueil vitrine
-  // - Réceptionniste : page d'accueil, Page des produits, enregistrement des visiteurs & consultation patients/clients
-  // - Médecin : page d'accueil, page de produits, bilans de santé et rapports
-  // - Caissière : page d'accueil, pages produits, caisse enregistreuse, factures
-  // - Comptable : page d'accueil, pages produits, historique des ventes, gestion de stock, rapports financiers, commande de stock, dépenses, suivi paiements
-  // - Admin : toutes les pages (y compris le Journal d'Audit STRICTEMENT réservé à l'Admin)
+  // Fallback role permissions
   const rolePermissions: Record<NavTab, string[]> = {
     showcase: ['visitor', 'receptionist', 'doctor', 'cashier', 'accountant', 'admin'],
     products: ['receptionist', 'doctor', 'cashier', 'accountant', 'admin'],
@@ -43,6 +37,11 @@ function MainLayout() {
   };
 
   const getDefaultTabForRole = (role: string): NavTab => {
+    if (role === 'admin') return 'showcase';
+    const roleDef = roles.find(r => r.id === role);
+    if (roleDef && roleDef.allowedTabs.length > 0) {
+      return (roleDef.allowedTabs[0] as NavTab) || 'showcase';
+    }
     switch (role) {
       case 'visitor':
         return 'showcase';
@@ -60,7 +59,11 @@ function MainLayout() {
     }
   };
 
-  const isAllowed = rolePermissions[activeTab]?.includes(currentUser.role);
+  const isAllowed = 
+    currentUser.role === 'admin' || 
+    isTabAllowedForRole(currentUser.role, activeTab) || 
+    rolePermissions[activeTab]?.includes(currentUser.role);
+
   const currentTab = isAllowed ? activeTab : getDefaultTabForRole(currentUser.role);
 
   return (

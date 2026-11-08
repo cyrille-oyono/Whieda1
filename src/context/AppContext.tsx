@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
-  User, UserRole, Partner, Patient, Visit, ProductService, 
+  User, UserRole, RoleDefinition, Partner, Patient, Visit, ProductService, 
   Sale, SupplierOrder, MedicalRecord, VisitStatus, OrderStatus,
   SaleItem, PaymentMethod, PrescriptionItem, MedicalExamDefinition, ExamParameter,
   CompanySettings, AppointmentRequest, PartnerApplication, AssociatedCenter,
@@ -8,7 +8,7 @@ import {
 } from '../types';
 
 import { 
-  INITIAL_USERS, INITIAL_PARTNERS, INITIAL_PATIENTS, 
+  INITIAL_USERS, INITIAL_ROLES, INITIAL_PARTNERS, INITIAL_PATIENTS, 
   INITIAL_PRODUCTS, INITIAL_VISITS, INITIAL_SALES, 
   INITIAL_ORDERS, INITIAL_RECORDS, INITIAL_EXAM_DEFINITIONS,
   INITIAL_COMPANY_SETTINGS, INITIAL_APPOINTMENTS, INITIAL_PARTNER_APPLICATIONS,
@@ -20,7 +20,15 @@ interface AppContextType {
   setCurrentUser: (user: User) => void;
   switchRole: (role: UserRole) => void;
   logout: () => void;
-  loginAs: (email: string) => boolean;
+  loginAs: (identifier: string, passwordAttempt?: string) => { success: boolean; message?: string };
+
+  // Roles & Permissions Management (Admin)
+  roles: RoleDefinition[];
+  addRole: (roleData: Omit<RoleDefinition, 'id' | 'createdAt'>) => RoleDefinition;
+  updateRole: (roleId: string, updatedData: Partial<RoleDefinition>) => void;
+  deleteRole: (roleId: string) => { success: boolean; message?: string };
+  resetDefaultCredentials: () => void;
+  isTabAllowedForRole: (roleId: string, tabId: string) => boolean;
 
   // Company Showcase Settings (Admin)
   companySettings: CompanySettings;
@@ -122,14 +130,49 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load state from localStorage or use defaults
+  const [roles, setRoles] = useState<RoleDefinition[]>(() => {
+    const saved = localStorage.getItem('whieda_roles');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        // fallback
+      }
+    }
+    return INITIAL_ROLES;
+  });
+
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('whieda_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    if (saved) {
+      try {
+        const parsed: User[] = JSON.parse(saved);
+        // Ensure the updated staff members (Cyrille Oyono, etc.) are present
+        const hasCyrille = parsed.some(u => u.fullName.toLowerCase().includes('cyrille') && u.role === 'admin');
+        if (hasCyrille && parsed.length >= 4) {
+          return parsed;
+        }
+      } catch (e) {
+        // fallback
+      }
+    }
+    return INITIAL_USERS;
   });
 
   const [currentUser, setCurrentUser] = useState<User>(() => {
     const saved = localStorage.getItem('whieda_current_user');
-    return saved ? JSON.parse(saved) : INITIAL_USERS[0]; // Admin by default
+    if (saved) {
+      try {
+        const parsed: User = JSON.parse(saved);
+        if (parsed && (parsed.fullName.toLowerCase().includes('cyrille') || parsed.role === 'admin')) {
+          return parsed;
+        }
+      } catch (e) {
+        // fallback
+      }
+    }
+    return INITIAL_USERS[0]; // Cyrille OYONO (Admin) by default
   });
 
   const [partners, setPartners] = useState<Partner[]>(() => {
@@ -269,8 +312,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('whieda_partner_payouts', JSON.stringify(partnerPayouts));
   }, [partnerPayouts]);
   useEffect(() => {
+    localStorage.setItem('whieda_roles', JSON.stringify(roles));
+  }, [roles]);
+  useEffect(() => {
     localStorage.setItem('whieda_audit_logs', JSON.stringify(auditLogs));
   }, [auditLogs]);
+
+  // Phone normalization helper (e.g. "+237 699 00 11 22" -> "699001122")
+  const normalizePhone = (phoneStr?: string): string => {
+    if (!phoneStr) return '';
+    let digits = phoneStr.replace(/\D/g, '');
+    if (digits.startsWith('237') && digits.length > 9) {
+      digits = digits.slice(3);
+    }
+    return digits;
+  };
 
   // Auth helpers
   const switchRole = (role: UserRole) => {
@@ -278,13 +334,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(user);
   };
 
-  const loginAs = (email: string): boolean => {
-    const found = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (found && found.active) {
-      setCurrentUser(found);
-      return true;
+  const loginAs = (identifier: string, passwordAttempt?: string): { success: boolean; message?: string } => {
+    const rawTrimmed = identifier.trim();
+    if (!rawTrimmed) {
+      return { success: false, message: 'Veuillez saisir votre identifiant (numéro de téléphone ou email).' };
     }
-    return false;
+
+    const cleanInputPhone = normalizePhone(rawTrimmed);
+
+    const found = users.find(u => {
+      const matchEmail = u.email.toLowerCase() === rawTrimmed.toLowerCase();
+      const matchPhone = cleanInputPhone && normalizePhone(u.phone) === cleanInputPhone;
+      return matchEmail || matchPhone;
+    });
+
+    if (!found) {
+      return { 
+        success: false, 
+        message: 'Identifiant introuvable. Veuillez renseigner votre numéro de téléphone (ex: 699001122) ou votre adresse email.' 
+      };
+    }
+
+    if (!found.active) {
+      return { 
+        success: false, 
+        message: 'Ce compte employé a été désactivé par l’administrateur.' 
+      };
+    }
+
+    // Verify alphanumeric password if provided
+    if (passwordAttempt !== undefined && passwordAttempt.trim() !== '') {
+      const targetPass = (found.password || 'Whieda@2026!').trim();
+      if (passwordAttempt.trim().toUpperCase() !== targetPass.toUpperCase()) {
+        return { 
+          success: false, 
+          message: 'Mot de passe alphanumérique incorrect.' 
+        };
+      }
+    }
+
+    setCurrentUser(found);
+    return { success: true };
   };
 
   const logout = () => {
@@ -292,11 +382,127 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUser(visitorUser);
   };
 
+  // Reset to default credentials as requested by user
+  const resetDefaultCredentials = () => {
+    setUsers(INITIAL_USERS);
+    setCurrentUser(INITIAL_USERS[0]);
+    localStorage.setItem('whieda_users', JSON.stringify(INITIAL_USERS));
+    localStorage.setItem('whieda_current_user', JSON.stringify(INITIAL_USERS[0]));
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Réinitialisation des accès par défaut',
+      module: 'Sécurité',
+      details: 'Restauration des accès officiels avec identifiant téléphone et mot de passe alphanumérique pour Cyrille OYONO (Admin), Cyrille OYONO OYONO (Comptable), Sarah OYONO (Médecin) et Idris Awoulbe (Réceptionniste).',
+      severity: 'warning',
+    });
+  };
+
+  // Dynamic Roles Management (Admin)
+  const addRole = (roleData: Omit<RoleDefinition, 'id' | 'createdAt'>): RoleDefinition => {
+    const cleanId = roleData.name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '_') || `role_${Date.now()}`;
+    
+    // Ensure unique ID
+    let finalId = cleanId;
+    let counter = 1;
+    while (roles.some(r => r.id === finalId)) {
+      finalId = `${cleanId}_${counter++}`;
+    }
+
+    const newRole: RoleDefinition = {
+      ...roleData,
+      id: finalId,
+      isSystem: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    setRoles(prev => [...prev, newRole]);
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Création de rôle RBAC',
+      module: 'Sécurité',
+      details: `Création du rôle "${newRole.name}" (ID: ${newRole.id}) avec ${newRole.allowedTabs.length} modules autorisés : [${newRole.allowedTabs.join(', ')}]`,
+      severity: 'info',
+    });
+
+    return newRole;
+  };
+
+  const updateRole = (roleId: string, updatedData: Partial<RoleDefinition>) => {
+    const target = roles.find(r => r.id === roleId);
+    if (!target) return;
+
+    setRoles(prev => prev.map(r => r.id === roleId ? { ...r, ...updatedData } : r));
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Modification de rôle RBAC',
+      module: 'Sécurité',
+      details: `Mise à jour du rôle "${target.name}" -> Nom: ${updatedData.name || target.name}, Description: ${updatedData.description || target.description}, Modules: [${(updatedData.allowedTabs || target.allowedTabs).join(', ')}]`,
+      severity: 'warning',
+    });
+  };
+
+  const deleteRole = (roleId: string): { success: boolean; message?: string } => {
+    const target = roles.find(r => r.id === roleId);
+    if (!target) {
+      return { success: false, message: 'Rôle introuvable.' };
+    }
+    if (target.isSystem || target.id === 'admin') {
+      return { 
+        success: false, 
+        message: 'Action refusée : Ce rôle est un rôle système fondamental et ne peut pas être supprimé.' 
+      };
+    }
+
+    const assignedUsers = users.filter(u => u.role === roleId);
+    if (assignedUsers.length > 0) {
+      return {
+        success: false,
+        message: `Action refusée : ${assignedUsers.length} collaborateur(s) (${assignedUsers.map(u => u.fullName).join(', ')}) occupent ce rôle. Veuillez d'abord réassigner leur rôle.`
+      };
+    }
+
+    setRoles(prev => prev.filter(r => r.id !== roleId));
+
+    addAuditLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      userRole: currentUser.role,
+      action: 'Suppression de rôle RBAC',
+      module: 'Sécurité',
+      details: `Suppression du rôle "${target.name}" (ID: ${target.id})`,
+      severity: 'danger',
+    });
+
+    return { success: true };
+  };
+
+  const isTabAllowedForRole = (roleId: string, tabId: string): boolean => {
+    if (roleId === 'admin') return true;
+    const roleDef = roles.find(r => r.id === roleId);
+    if (roleDef) {
+      return roleDef.allowedTabs.includes(tabId);
+    }
+    return false;
+  };
+
   // Add User (Admin)
-  const addUser = (userData: Omit<User, 'id' | 'createdAt'>) => {
+  const addUser = (userData: Omit<User, 'id' | 'createdAt'>, initialPassword?: string) => {
     const newUser: User = {
       ...userData,
       id: `usr-${Date.now()}`,
+      password: initialPassword || 'Whieda@2026!',
       createdAt: new Date().toISOString(),
     };
     setUsers(prev => [newUser, ...prev]);
@@ -307,7 +513,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userRole: currentUser.role,
       action: 'Création compte employé',
       module: 'Sécurité',
-      details: `Création du compte employé pour ${newUser.fullName} (${newUser.email}) - Rôle: ${newUser.role}, Département: ${newUser.department || 'N/A'}`,
+      details: `Création du compte employé pour ${newUser.fullName} (${newUser.email || newUser.phone}) - Rôle: ${newUser.role}, Département: ${newUser.department || 'N/A'}`,
       severity: 'info',
     });
   };
@@ -972,6 +1178,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateUser,
       deleteUser,
       toggleUserStatus,
+      roles,
+      addRole,
+      updateRole,
+      deleteRole,
+      resetDefaultCredentials,
+      isTabAllowedForRole,
       partners,
       addPartner,
       updatePartner,

@@ -36,7 +36,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
-  const { currentUser, products, visits, partners } = useApp();
+  const { currentUser, products, visits, partners, isTabAllowedForRole } = useApp();
 
   // Low stock counter
   const lowStockCount = products.filter(
@@ -132,7 +132,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {
     },
   ];
 
-  const visibleItems = navItems.filter(item => item.allowedRoles.includes(currentUser.role));
+  const visibleItems = navItems.filter(item => 
+    currentUser.role === 'admin' ||
+    isTabAllowedForRole(currentUser.role, item.id) ||
+    item.allowedRoles.includes(currentUser.role)
+  );
 
   return (
     <aside className="w-64 bg-white border-r border-neutral-200 flex flex-col shrink-0 min-h-[calc(100vh-4rem)] no-print">

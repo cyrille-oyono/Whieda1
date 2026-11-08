@@ -4,7 +4,30 @@ export type UserRole =
   | 'doctor'        // Médecin
   | 'cashier'       // Caissière
   | 'accountant'    // Comptable
-  | 'admin';        // Administrateur (Toutes les pages)
+  | 'admin'         // Administrateur (Toutes les pages)
+  | string;         // Support pour les rôles personnalisés créés par l'admin
+
+export interface RoleDefinition {
+  id: string; // e.g. 'admin', 'accountant', 'doctor', 'receptionist', 'cashier', 'role-custom-1'
+  name: string; // e.g. 'Administrateur', 'Comptable', 'Médecin', etc.
+  description: string;
+  isSystem?: boolean; // Rôle système protégé non supprimable
+  color: string; // 'red' | 'orange' | 'rose' | 'amber' | 'purple' | 'blue' | 'emerald' | 'indigo'
+  allowedTabs: string[]; // Liste des identifiants d'onglets autorisés
+  createdAt?: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  fullName: string;
+  role: UserRole;
+  phone?: string;
+  password?: string; // Code alphanumérique de connexion
+  department?: string;
+  active: boolean;
+  createdAt: string;
+}
 
 export interface CompanySettings {
   name: string;
@@ -62,17 +85,6 @@ export interface PartnerApplication {
   sponsorCode?: string;
   motivation?: string;
   status: 'en_attente' | 'valide' | 'rejete';
-  createdAt: string;
-}
-
-export interface User {
-  id: string;
-  email: string;
-  fullName: string;
-  role: UserRole;
-  phone?: string;
-  department?: string;
-  active: boolean;
   createdAt: string;
 }
 
