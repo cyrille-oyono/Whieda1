@@ -1,15 +1,27 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Get Supabase URL and Anon Key from environment variables (Vite / Vercel) or localStorage
+// Default Supabase project credentials for Wheida Meyomessala
+export const DEFAULT_SUPABASE_URL = 'https://cbxwwmcjvdwcenyydegj.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_kL5iCT-8txI6hzNWnZt-rw_ceqEvlbz';
+
+// Get Supabase URL and Anon Key from environment variables (Vite / Next.js / Vercel) or localStorage
 export const getSupabaseConfig = () => {
-  const envUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const envUrl = (
+    import.meta.env.VITE_SUPABASE_URL || 
+    (import.meta.env as any).NEXT_PUBLIC_SUPABASE_URL
+  ) as string | undefined;
+
+  const envKey = (
+    import.meta.env.VITE_SUPABASE_ANON_KEY || 
+    (import.meta.env as any).NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    (import.meta.env as any).NEXT_PUBLIC_SUPABASE_ANON_KEY
+  ) as string | undefined;
 
   const storedUrl = typeof window !== 'undefined' ? localStorage.getItem('whieda_supabase_url') : null;
   const storedKey = typeof window !== 'undefined' ? localStorage.getItem('whieda_supabase_anon_key') : null;
 
-  const url = (storedUrl || envUrl || '').trim();
-  const anonKey = (storedKey || envKey || '').trim();
+  const url = (storedUrl || envUrl || DEFAULT_SUPABASE_URL).trim();
+  const anonKey = (storedKey || envKey || DEFAULT_SUPABASE_ANON_KEY).trim();
 
   return {
     url,
