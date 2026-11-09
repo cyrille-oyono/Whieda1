@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { 
   User, UserRole, RoleDefinition, Partner, Patient, Visit, ProductService, 
   Sale, SupplierOrder, MedicalRecord, VisitStatus, OrderStatus,
@@ -15,6 +15,38 @@ import {
   INITIAL_ASSOCIATED_CENTERS, INITIAL_EXPENSES, INITIAL_PARTNER_PAYOUTS, INITIAL_AUDIT_LOGS
 } from '../data/mockData';
 import { syncOfficialProductsList, OFFICIAL_PRODUCTS_APP_SERVICES } from '../data/officialProducts';
+
+import { 
+  getSupabaseConfig, 
+  saveSupabaseConfig, 
+  testSupabaseConnection 
+} from '../lib/supabase';
+import { 
+  fetchProductsFromSupabase, 
+  saveProductToSupabase, 
+  deleteProductFromSupabase,
+  fetchPartnersFromSupabase, 
+  savePartnerToSupabase, 
+  deletePartnerFromSupabase,
+  fetchExpensesFromSupabase, 
+  saveExpenseToSupabase, 
+  deleteExpenseFromSupabase,
+  fetchVisitsFromSupabase, 
+  saveVisitToSupabase, 
+  fetchCompanySettingsFromSupabase, 
+  saveCompanySettingsToSupabase,
+  subscribeToSupabaseRealtime,
+  mapProductFromDb,
+  mapPartnerFromDb,
+  mapExpenseFromDb,
+  mapVisitFromDb
+} from '../services/supabaseService';
+import { 
+  migrateLocalStorageToSupabase, 
+  checkHasLocalDataToMigrate, 
+  isAlreadyMigrated, 
+  MigrationReport 
+} from '../services/migrationService';
 
 interface AppContextType {
   currentUser: User;
@@ -129,6 +161,15 @@ interface AppContextType {
   auditLogs: AuditLog[];
   addAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp'>) => void;
   clearAuditLogs: () => void;
+
+  // Supabase Realtime & Synchronisation Distante
+  supabaseStatus: 'connected' | 'connecting' | 'disconnected' | 'error';
+  isSupabaseConfigured: boolean;
+  isMigrating: boolean;
+  migrationReport: MigrationReport | null;
+  runSupabaseMigration: () => Promise<MigrationReport>;
+  updateSupabaseCredentials: (url: string, key: string) => Promise<{ success: boolean; message: string }>;
+  refreshDataFromSupabase: () => Promise<void>;
 }
 
 
@@ -337,6 +378,195 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('whieda_audit_logs', JSON.stringify(auditLogs));
   }, [auditLogs]);
+
+  // Supabase Cloud State & Realtime
+  const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'connecting' | 'disconnected' | 'error'>('disconnected');
+  const [isSupabaseConfigured, setIsSupabaseConfigured] = useState<boolean>(() => getSupabaseConfig().isConfigured);
+  const [isMigrating, setIsMigrating] = useState<boolean>(false);
+  const [migrationReport, setMigrationReport] = useState<MigrationReport | null>(null);
+
+  const refreshDataFromSupabase = useCallback(async () => {
+    const cfg = getSupabaseConfig();
+    if (!cfg.isConfigured) return;
+
+    try {
+      setSupabaseStatus('connecting');
+
+      // 1. Fetch products
+      const dbProducts = await fetchProductsFromSupabase();
+      if (dbProducts && dbProducts.length > 0) {
+        setProducts(syncOfficialProductsList(dbProducts));
+      }
+
+      // 2. Fetch partners
+      const dbPartners = await fetchPartnersFromSupabase();
+      if (dbPartners && dbPartners.length > 0) {
+        setPartners(dbPartners);
+      }
+
+      // 3. Fetch expenses
+      const dbExpenses = await fetchExpensesFromSupabase();
+      if (dbExpenses && dbExpenses.length > 0) {
+        setExpenses(dbExpenses);
+      }
+
+      // 4. Fetch visits
+      const dbVisits = await fetchVisitsFromSupabase();
+      if (dbVisits && dbVisits.length > 0) {
+        setVisits(dbVisits);
+      }
+
+      // 5. Fetch company settings
+      const dbSettings = await fetchCompanySettingsFromSupabase();
+      if (dbSettings) {
+        setCompanySettings(dbSettings);
+      }
+
+      setSupabaseStatus('connected');
+    } catch (err) {
+      console.error('Erreur chargement Supabase initial:', err);
+      setSupabaseStatus('error');
+    }
+  }, []);
+
+  // Supabase Realtime Subscription Hook
+  useEffect(() => {
+    const cfg = getSupabaseConfig();
+    setIsSupabaseConfigured(cfg.isConfigured);
+    if (!cfg.isConfigured) {
+      setSupabaseStatus('disconnected');
+      return;
+    }
+
+    // Refresh data initially
+    refreshDataFromSupabase();
+
+    // Subscribe to multi-user Postgres change broadcast
+    const unsubscribe = subscribeToSupabaseRealtime(
+      (payload) => {
+        const { table, eventType, new: newRow, old: oldRow } = payload;
+        
+        // Handle Products Realtime
+        if (table === 'products' || table === 'products_services') {
+          if (eventType === 'DELETE' && oldRow) {
+            setProducts(prev => prev.filter(p => p.id !== oldRow.id && p.sku !== oldRow.sku && p.code !== oldRow.code));
+          } else if (newRow) {
+            const mapped = mapProductFromDb(newRow);
+            setProducts(prev => {
+              const idx = prev.findIndex(p => p.id === mapped.id || p.sku === mapped.sku || p.code === mapped.code);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = mapped;
+                return next;
+              }
+              return [mapped, ...prev];
+            });
+          }
+        } 
+        // Handle Partners Realtime
+        else if (table === 'partners') {
+          if (eventType === 'DELETE' && oldRow) {
+            setPartners(prev => prev.filter(p => p.id !== oldRow.id && p.code !== oldRow.code));
+          } else if (newRow) {
+            const mapped = mapPartnerFromDb(newRow);
+            setPartners(prev => {
+              const idx = prev.findIndex(p => p.id === mapped.id || p.code === mapped.code);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = mapped;
+                return next;
+              }
+              return [mapped, ...prev];
+            });
+          }
+        } 
+        // Handle Expenses Realtime
+        else if (table === 'expenses') {
+          if (eventType === 'DELETE' && oldRow) {
+            setExpenses(prev => prev.filter(e => e.id !== oldRow.id));
+          } else if (newRow) {
+            const mapped = mapExpenseFromDb(newRow);
+            setExpenses(prev => {
+              const idx = prev.findIndex(e => e.id === mapped.id);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = mapped;
+                return next;
+              }
+              return [mapped, ...prev];
+            });
+          }
+        } 
+        // Handle Daily Visits Realtime
+        else if (table === 'daily_visits') {
+          if (eventType === 'DELETE' && oldRow) {
+            setVisits(prev => prev.filter(v => v.id !== oldRow.id));
+          } else if (newRow) {
+            const mapped = mapVisitFromDb(newRow);
+            setVisits(prev => {
+              const idx = prev.findIndex(v => v.id === mapped.id);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = mapped;
+                return next;
+              }
+              return [mapped, ...prev];
+            });
+          }
+        } 
+        // Handle Company Settings Realtime
+        else if (table === 'company_settings' && newRow?.settings) {
+          setCompanySettings(newRow.settings);
+        }
+      },
+      (status) => {
+        setSupabaseStatus(status);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [refreshDataFromSupabase]);
+
+  // Migration Execution
+  const runSupabaseMigration = async (): Promise<MigrationReport> => {
+    setIsMigrating(true);
+    try {
+      const report = await migrateLocalStorageToSupabase();
+      setMigrationReport(report);
+      if (report.success) {
+        await refreshDataFromSupabase();
+        addAuditLog({
+          userId: currentUser.id,
+          userName: currentUser.fullName,
+          userRole: currentUser.role,
+          action: 'Migration vers Supabase réussie',
+          module: 'Sécurité',
+          details: `Migration des données vers Supabase effectuée : ${report.counts.products} produits, ${report.counts.partners} partenaires, ${report.counts.expenses} dépenses, ${report.counts.visits} visites.`,
+          severity: 'info',
+        });
+      }
+      return report;
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
+  // Credentials configuration from UI
+  const updateSupabaseCredentials = async (url: string, key: string): Promise<{ success: boolean; message: string }> => {
+    saveSupabaseConfig(url, key);
+    const cfg = getSupabaseConfig();
+    setIsSupabaseConfigured(cfg.isConfigured);
+    const test = await testSupabaseConnection(url, key);
+    if (test.success) {
+      setSupabaseStatus('connecting');
+      await refreshDataFromSupabase();
+    } else {
+      setSupabaseStatus('error');
+    }
+    return test;
+  };
 
   // Phone normalization helper (e.g. "+237 699 00 11 22" -> "699001122")
   const normalizePhone = (phoneStr?: string): string => {
@@ -669,15 +899,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       registeredAt: new Date().toISOString().split('T')[0],
     };
     setPartners(prev => [newPartner, ...prev]);
+    savePartnerToSupabase(newPartner).catch(err => console.error('Supabase savePartner error:', err));
   };
 
   const updatePartner = (partnerId: string, data: Partial<Partner>) => {
+    let updatedPartner: Partner | null = null;
     setPartners(prev => prev.map(p => {
       if (p.id === partnerId) {
-        return { ...p, ...data };
+        const merged = { ...p, ...data };
+        updatedPartner = merged;
+        return merged;
       }
       return p;
     }));
+    if (updatedPartner) {
+      savePartnerToSupabase(updatedPartner).catch(err => console.error('Supabase updatePartner error:', err));
+    }
   };
 
   const deletePartner = (partnerId: string) => {
@@ -694,17 +931,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
     setPartners(prev => prev.filter(p => p.id !== partnerId));
+    deletePartnerFromSupabase(partnerId).catch(err => console.error('Supabase deletePartner error:', err));
   };
 
   const settlePartnerPayout = (partnerId: string, amount: number) => {
     setPartners(prev => prev.map(p => {
       if (p.id === partnerId) {
         const actualAmount = Math.min(amount, p.remainingEarnings);
-        return {
+        const updated = {
           ...p,
           paidEarnings: p.paidEarnings + actualAmount,
           remainingEarnings: Math.max(0, p.remainingEarnings - actualAmount),
         };
+        savePartnerToSupabase(updated).catch(err => console.error('Supabase settlePartnerPayout error:', err));
+        return updated;
       }
       return p;
     }));
@@ -714,11 +954,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPartners(prev => prev.map(p => {
       if (p.id === partnerId) {
         const actualPv = Math.min(pvAmount, p.remainingPv);
-        return {
+        const updated = {
           ...p,
           placedPv: p.placedPv + actualPv,
           remainingPv: Math.max(0, p.remainingPv - actualPv),
         };
+        savePartnerToSupabase(updated).catch(err => console.error('Supabase placePartnerPv error:', err));
+        return updated;
       }
       return p;
     }));
@@ -749,10 +991,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: data.status || 'en_attente',
     };
     setVisits(prev => [newVisit, ...prev]);
+    saveVisitToSupabase(newVisit).catch(err => console.error('Supabase saveVisit error:', err));
   };
 
   const updateVisitStatus = (visitId: string, status: VisitStatus) => {
-    setVisits(prev => prev.map(v => v.id === visitId ? { ...v, status } : v));
+    let updatedVisit: Visit | null = null;
+    setVisits(prev => prev.map(v => {
+      if (v.id === visitId) {
+        const updated = { ...v, status };
+        updatedVisit = updated;
+        return updated;
+      }
+      return v;
+    }));
+    if (updatedVisit) {
+      saveVisitToSupabase(updatedVisit).catch(err => console.error('Supabase updateVisitStatus error:', err));
+    }
   };
 
   // Products & Services
@@ -780,6 +1034,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       directMargin,
     };
     setProducts(prev => [newProduct, ...prev]);
+    saveProductToSupabase(newProduct).catch(err => console.error('Supabase saveProduct error:', err));
 
     addAuditLog({
       userId: currentUser.id,
@@ -793,15 +1048,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const seedOfficialCatalog = (mode: 'merge' | 'reset_all' = 'merge') => {
+    let listToSeed: ProductService[] = [];
     if (mode === 'reset_all') {
+      listToSeed = INITIAL_PRODUCTS;
       setProducts(INITIAL_PRODUCTS);
       localStorage.setItem('whieda_products', JSON.stringify(INITIAL_PRODUCTS));
     } else {
       setProducts(prev => {
         const synced = syncOfficialProductsList(prev);
+        listToSeed = synced;
         localStorage.setItem('whieda_products', JSON.stringify(synced));
         return synced;
       });
+    }
+
+    // Also persist seeded catalog to Supabase in background
+    if (listToSeed.length > 0) {
+      Promise.all(listToSeed.map(p => saveProductToSupabase(p)))
+        .catch(err => console.error('Supabase seed error:', err));
     }
 
     addAuditLog({
@@ -816,18 +1080,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProduct = (id: string, updates: Partial<ProductService>) => {
+    let updatedProduct: ProductService | null = null;
     setProducts(prev => prev.map(p => {
       if (p.id === id) {
         const merged = { ...p, ...updates };
         merged.directMargin = Math.max(0, merged.patientPrice - merged.partnerPrice);
+        updatedProduct = merged;
         return merged;
       }
       return p;
     }));
+    if (updatedProduct) {
+      saveProductToSupabase(updatedProduct).catch(err => console.error('Supabase updateProduct error:', err));
+    }
   };
 
   const deleteProduct = (id: string) => {
     setProducts(prev => prev.filter(p => p.id !== id));
+    deleteProductFromSupabase(id).catch(err => console.error('Supabase deleteProduct error:', err));
   };
 
   const restockProduct = (productId: string, quantityToAdd: number, notes?: string) => {
@@ -835,18 +1105,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const target = products.find(p => p.id === productId);
     if (!target) return;
 
+    let updatedTarget: ProductService | null = null;
     setProducts(prev => prev.map(p => {
       if (p.id === productId) {
         const newQty = p.stockQuantity + quantityToAdd;
         const newTotal = (p.totalStockReceived ?? p.stockQuantity) + quantityToAdd;
-        return {
+        const updated = {
           ...p,
           stockQuantity: newQty,
           totalStockReceived: newTotal,
         };
+        updatedTarget = updated;
+        return updated;
       }
       return p;
     }));
+
+    if (updatedTarget) {
+      saveProductToSupabase(updatedTarget).catch(err => console.error('Supabase restock save error:', err));
+    }
 
     addAuditLog({
       userId: currentUser.id,
@@ -863,17 +1140,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const validItems = items.filter(i => i.quantity > 0);
     if (validItems.length === 0) return;
 
+    const updatedList: ProductService[] = [];
     setProducts(prev => prev.map(p => {
       const match = validItems.find(i => i.productId === p.id);
       if (match) {
-        return {
+        const updated = {
           ...p,
           stockQuantity: p.stockQuantity + match.quantity,
           totalStockReceived: (p.totalStockReceived ?? p.stockQuantity) + match.quantity,
         };
+        updatedList.push(updated);
+        return updated;
       }
       return p;
     }));
+
+    if (updatedList.length > 0) {
+      Promise.all(updatedList.map(p => saveProductToSupabase(p)))
+        .catch(err => console.error('Supabase batchRestock save error:', err));
+    }
 
     addAuditLog({
       userId: currentUser.id,
@@ -936,28 +1221,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSales(prev => [newSale, ...prev]);
 
     // 2. Deduct physical stock for physical categories (all except services)
+    const updatedStockProducts: ProductService[] = [];
     setProducts(prev => prev.map(prod => {
       const soldItem = saleData.items.find(i => i.productId === prod.id);
       if (soldItem && prod.category !== 'services') {
-        return {
+        const updated = {
           ...prod,
           stockQuantity: Math.max(0, prod.stockQuantity - soldItem.quantity),
         };
+        updatedStockProducts.push(updated);
+        return updated;
       }
       return prod;
     }));
+
+    if (updatedStockProducts.length > 0) {
+      Promise.all(updatedStockProducts.map(p => saveProductToSupabase(p)))
+        .catch(err => console.error('Supabase completeSale stock save error:', err));
+    }
 
     // 3. Trigger partner MLM earnings & PV accumulation if sponsor partner attached
     if (saleData.sponsorPartnerId) {
       setPartners(prev => prev.map(partner => {
         if (partner.id === saleData.sponsorPartnerId) {
-          return {
+          const updated = {
             ...partner,
             totalDirectEarnings: partner.totalDirectEarnings + totalPartnerGain,
             remainingEarnings: partner.remainingEarnings + totalPartnerGain,
             totalPv: partner.totalPv + totalPv,
             remainingPv: partner.remainingPv + totalPv,
           };
+          savePartnerToSupabase(updated).catch(err => console.error('Supabase completeSale partner update error:', err));
+          return updated;
         }
         return partner;
       }));
@@ -1120,7 +1415,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Company Showcase Settings
   const updateCompanySettings = (updates: Partial<CompanySettings>) => {
-    setCompanySettings(prev => ({ ...prev, ...updates }));
+    setCompanySettings(prev => {
+      const merged = { ...prev, ...updates };
+      saveCompanySettingsToSupabase(merged).catch(err => console.error('Supabase updateCompanySettings error:', err));
+      return merged;
+    });
   };
 
   // Appointments (Showcase)
@@ -1195,6 +1494,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
     };
     setExpenses(prev => [newExpense, ...prev]);
+    saveExpenseToSupabase(newExpense).catch(err => console.error('Supabase saveExpense error:', err));
 
     // Trace in Audit Log
     addAuditLog({
@@ -1214,12 +1514,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const existing = expenses.find(e => e.id === id);
     if (!existing) return;
 
+    let updatedExpense: Expense | null = null;
     setExpenses(prev => prev.map(e => {
       if (e.id === id) {
-        return { ...e, ...updatedData };
+        const merged = { ...e, ...updatedData };
+        updatedExpense = merged;
+        return merged;
       }
       return e;
     }));
+
+    if (updatedExpense) {
+      saveExpenseToSupabase(updatedExpense).catch(err => console.error('Supabase updateExpense error:', err));
+    }
 
     // Trace in Audit Log
     addAuditLog({
@@ -1238,6 +1545,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!existing) return;
 
     setExpenses(prev => prev.filter(e => e.id !== id));
+    deleteExpenseFromSupabase(id).catch(err => console.error('Supabase deleteExpense error:', err));
 
     // Trace in Audit Log
     addAuditLog({
@@ -1364,6 +1672,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       auditLogs,
       addAuditLog,
       clearAuditLogs,
+      supabaseStatus,
+      isSupabaseConfigured,
+      isMigrating,
+      migrationReport,
+      runSupabaseMigration,
+      updateSupabaseCredentials,
+      refreshDataFromSupabase,
     }}>
       {children}
     </AppContext.Provider>

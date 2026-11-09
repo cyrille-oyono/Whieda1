@@ -30,7 +30,7 @@ import {
 import { SUPABASE_OFFICIAL_PRODUCTS_SEED_SQL, OFFICIAL_PRODUCTS_CATALOG } from '../data/officialProducts';
 
 export const ProductsView: React.FC = () => {
-  const { products, addProduct, updateProduct, deleteProduct, seedOfficialCatalog, currentUser } = useApp();
+  const { products, addProduct, updateProduct, deleteProduct, seedOfficialCatalog, currentUser, supabaseStatus } = useApp();
 
   const [activeCategory, setActiveCategory] = useState<'all' | ProductCategory>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -225,10 +225,18 @@ export const ProductsView: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight flex items-center gap-2">
-            <Package className="w-5 h-5 text-orange-600" />
-            <span>Catalogue & Produits Officiels Whieda</span>
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-neutral-900 tracking-tight flex items-center gap-2">
+              <Package className="w-5 h-5 text-orange-600" />
+              <span>Catalogue & Produits Officiels Whieda</span>
+            </h1>
+            {supabaseStatus === 'connected' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Supabase Realtime</span>
+              </span>
+            )}
+          </div>
           <p className="text-xs text-neutral-500 mt-0.5">
             Grille tarifaire officielle (28 produits certifiés), marges directes, PV MLM et gestion des stocks
           </p>

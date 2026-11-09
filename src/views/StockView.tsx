@@ -43,7 +43,8 @@ export const StockView: React.FC = () => {
     batchRestockProducts, 
     createSupplierOrder, 
     currentUser, 
-    companySettings 
+    companySettings,
+    supabaseStatus 
   } = useApp();
 
   // Role Protection: Visible par l'Admin et le Comptable
@@ -506,6 +507,12 @@ export const StockView: React.FC = () => {
             <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
               Gestion de Stock Synchronisée & Approvisionnement
             </h1>
+            {supabaseStatus === 'connected' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Supabase Realtime</span>
+              </span>
+            )}
           </div>
           <p className="text-xs text-neutral-500 mt-1">
             Suivi des quantités initiales, totales, vendues et restantes en temps réel avec les ventes POS · Alertes de réapprovisionnement.
