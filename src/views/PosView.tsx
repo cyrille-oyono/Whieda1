@@ -1,842 +1,272 @@
-import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
-import { ProductService, SaleItem, PaymentMethod, Sale } from '../types';
-import { formatMoney, formatPV } from '../utils/formatters';
-import { 
-  ShoppingCart, 
-  Search, 
-  Plus, 
-  Minus, 
-  Trash2, 
-  CreditCard, 
-  Printer, 
-  User, 
-  Link as LinkIcon, 
-  Check, 
-  X, 
-  Percent, 
-  Sparkles,
-  Smartphone,
-  FileText,
-  DollarSign,
-  Receipt,
-  FileDown,
-  CheckCircle,
-  Download,
-  Edit3,
-  AlertTriangle
-} from 'lucide-react';
-import { generateInvoicePDF } from '../utils/pdfGenerator';
-
-export const PosView: React.FC = () => {
-  const { products, patients, partners, completeSale, updateSale, deleteSale, currentUser, sales, companySettings } = useApp();
-
-  // Tab: 'pos' (Caisse active) or 'invoices' (Factures & Historique)
-  const [activePosTab, setActivePosTab] = useState<'pos' | 'invoices'>('pos');
-  const [invoiceSearch, setInvoiceSearch] = useState('');
-
-  // PDF Export Feedback and View Mode
-  const [pdfNotification, setPdfNotification] = useState<string | null>(null);
-  const [receiptViewMode, setReceiptViewMode] = useState<'invoice_a4' | 'ticket'>('invoice_a4');
-
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [cart, setCart] = useState<SaleItem[]>([]);
-  const [selectedPatientId, setSelectedPatientId] = useState<string>('');
-  const [customPatientName, setCustomPatientName] = useState<string>('');
-  const [selectedPartnerId, setSelectedPartnerId] = useState<string>('');
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('orange_money');
-  const [paymentRef, setPaymentRef] = useState<string>('');
-
-  // Receipt Modal
-  const [lastSale, setLastSale] = useState<Sale | null>(null);
-  const [isReceiptOpen, setIsReceiptOpen] = useState(false);
-
-  // Edit & Delete Sale States
-  const [editingSale, setEditingSale] = useState<Sale | null>(null);
-  const [editSaleForm, setEditSaleForm] = useState<{
-    patientName: string;
-    sponsorPartnerId: string;
-    paymentMethod: PaymentMethod;
-    paymentReference: string;
-    discountAmount: number;
-    date: string;
-    time: string;
-    status: 'complete' | 'annule';
-  }>({
-    patientName: '',
-    sponsorPartnerId: '',
-    paymentMethod: 'especes',
-    paymentReference: '',
-    discountAmount: 0,
-    date: '',
-    time: '',
-    status: 'complete',
-  });
-  const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
-
-  const handleStartEditSale = (sale: Sale) => {
-    setEditingSale(sale);
-    setEditSaleForm({
-      patientName: sale.patientName,
-      sponsorPartnerId: sale.sponsorPartnerId || '',
-      paymentMethod: sale.paymentMethod,
-      paymentReference: sale.paymentReference || '',
-      discountAmount: sale.discountAmount || 0,
-      date: sale.date,
-      time: sale.time,
-      status: sale.status,
-    });
-  };
-
-  const handleSaveSaleEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingSale) return;
-
-    const sponsor = partners.find(p => p.id === editSaleForm.sponsorPartnerId);
-    const discount = Math.max(0, Number(editSaleForm.discountAmount) || 0);
-
-    const updatedData: Partial<Sale> = {
-      patientName: editSaleForm.patientName.trim(),
-      sponsorPartnerId: sponsor ? sponsor.id : undefined,
-      sponsorPartnerName: sponsor ? `${sponsor.firstName} ${sponsor.lastName}` : undefined,
-      sponsorPartnerCode: sponsor ? sponsor.code : undefined,
-      paymentMethod: editSaleForm.paymentMethod,
-      paymentReference: editSaleForm.paymentReference.trim() || undefined,
-      discountAmount: discount,
-      date: editSaleForm.date,
-      time: editSaleForm.time,
-      status: editSaleForm.status,
-    };
-
-    updateSale(editingSale.id, updatedData);
-
-    // Update lastSale if currently open in receipt modal
-    if (lastSale?.id === editingSale.id) {
-      setLastSale(prev => prev ? { 
-        ...prev, 
-        ...updatedData, 
-        netAmount: Math.max(0, prev.totalAmount - discount) 
-      } : null);
-    }
-
-    setPdfNotification(`Reçu ${editingSale.receiptNumber} modifié avec succès !`);
-    setTimeout(() => setPdfNotification(null), 3500);
-    setEditingSale(null);
-  };
-
-  const handleConfirmDeleteSale = () => {
-    if (!saleToDelete) return;
-    deleteSale(saleToDelete.id);
-
-    if (lastSale?.id === saleToDelete.id) {
-      setIsReceiptOpen(false);
-      setLastSale(null);
-    }
-
-    setPdfNotification(`Reçu ${saleToDelete.receiptNumber} supprimé et stocks réajustés !`);
-    setTimeout(() => setPdfNotification(null), 3500);
-    setSaleToDelete(null);
-  };
-
-  const handleDownloadPdf = (sale: Sale) => {
-    try {
-      generateInvoicePDF(sale, companySettings);
-      setPdfNotification(`Facture PDF ${sale.receiptNumber} générée et téléchargée avec succès !`);
-      setTimeout(() => setPdfNotification(null), 4000);
-    } catch (err) {
-      console.error('Erreur génération PDF :', err);
-      // Fallback to print
-      window.print();
-    }
-  };
-
-  // Auto-detect sponsor when patient is selected
-  const handleSelectPatient = (patientId: string) => {
-    setSelectedPatientId(patientId);
-    if (!patientId) {
-      setSelectedPartnerId('');
-      setCustomPatientName('');
-      return;
-    }
-    const pat = patients.find(p => p.id === patientId);
-    if (pat) {
-      setCustomPatientName(pat.fullName);
-      if (pat.sponsorPartnerId) {
-        setSelectedPartnerId(pat.sponsorPartnerId);
-      }
-    }
-  };
-
-  const handleAddToCart = (product: ProductService) => {
-    // Check if item in stock
-    const isPhysical = product.category !== 'services';
-    const existingInCart = cart.find(i => i.productId === product.id);
-    const currentQtyInCart = existingInCart ? existingInCart.quantity : 0;
-
-
-    if (isPhysical && product.stockQuantity <= currentQtyInCart) {
-      setPdfNotification(`⚠️ Stock insuffisant pour ${product.name} (Stock disponible: ${product.stockQuantity})`);
-      setTimeout(() => setPdfNotification(null), 4000);
-      return;
-    }
-
-    if (existingInCart) {
-      setCart(cart.map(item =>
-        item.productId === product.id
-          ? {
-              ...item,
-              quantity: item.quantity + 1,
-              subtotal: (item.quantity + 1) * item.patientPrice,
-            }
-          : item
-      ));
-    } else {
-      const newItem: SaleItem = {
-        productId: product.id,
-        sku: product.sku,
-        productName: product.name,
-        category: product.category,
-        patientPrice: product.patientPrice,
-        partnerPrice: product.partnerPrice,
-        itemGain: product.directMargin,
-        pv: product.pv,
-        quantity: 1,
-        subtotal: product.patientPrice,
-      };
-      setCart([...cart, newItem]);
-    }
-  };
-
-  const handleUpdateQuantity = (productId: string, delta: number) => {
-    const prod = products.find(p => p.id === productId);
-    const item = cart.find(i => i.productId === productId);
-    if (!item) return;
-
-    const newQty = item.quantity + delta;
-    if (newQty <= 0) {
-      setCart(cart.filter(i => i.productId !== productId));
-      return;
-    }
-
-    if (prod && prod.category !== 'services' && newQty > prod.stockQuantity) {
-      setPdfNotification(`⚠️ Stock maximum atteint (${prod.stockQuantity} disponibles).`);
-      setTimeout(() => setPdfNotification(null), 4000);
-      return;
-    }
-
-
-    setCart(cart.map(i =>
-      i.productId === productId
-        ? { ...i, quantity: newQty, subtotal: newQty * i.patientPrice }
-        : i
-    ));
-  };
-
-  const handleRemoveFromCart = (productId: string) => {
-    setCart(cart.filter(i => i.productId !== productId));
-  };
-
-  const totalGross = cart.reduce((acc, item) => acc + item.subtotal, 0);
-  const netTotal = Math.max(0, totalGross - discountAmount);
-  const totalPv = cart.reduce((acc, item) => acc + (item.pv * item.quantity), 0);
-  const totalPartnerMargin = cart.reduce((acc, item) => acc + (item.itemGain * item.quantity), 0);
-
-  const selectedPartner = partners.find(p => p.id === selectedPartnerId);
-
-  const handleCheckout = () => {
-    if (cart.length === 0) return;
-
-    const patientName = customPatientName.trim() || 'Client Comptoir';
-    const sale = completeSale({
-      patientId: selectedPatientId || undefined,
-      patientName,
-      sponsorPartnerId: selectedPartner?.id,
-      sponsorPartnerName: selectedPartner ? `${selectedPartner.firstName} ${selectedPartner.lastName}` : undefined,
-      sponsorPartnerCode: selectedPartner?.code,
-      items: cart,
-      discountAmount,
-      paymentMethod,
-      paymentReference: paymentRef || undefined,
-    });
-
-    setLastSale(sale);
-    setIsReceiptOpen(true);
-
-    // Reset cart
-    setCart([]);
-    setDiscountAmount(0);
-    setPaymentRef('');
-  };
-
-  const filteredProducts = products.filter(p => {
-    const matchesCat = selectedCategory === 'all' || p.category === selectedCategory;
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCat && matchesSearch;
-  });
-
-  const filteredSales = sales.filter(s => {
-    const q = invoiceSearch.toLowerCase();
-    return (
-      s.receiptNumber.toLowerCase().includes(q) ||
-      s.patientName.toLowerCase().includes(q) ||
-      (s.sponsorPartnerName && s.sponsorPartnerName.toLowerCase().includes(q)) ||
-      (s.paymentReference && s.paymentReference.toLowerCase().includes(q)) ||
-      s.cashierName.toLowerCase().includes(q)
-    );
-  });
-
-  const totalInvoiced = sales.reduce((acc, s) => acc + s.netAmount, 0);
-  const totalPvInvoiced = sales.reduce((acc, s) => acc + s.totalPv, 0);
-  const totalCommissions = sales.reduce((acc, s) => acc + s.totalPartnerGain, 0);
-
-  return (
-    <div className="space-y-6">
-      {/* Toast Notification PDF Export */}
-      {pdfNotification && (
-        <div className="fixed top-20 right-6 z-50 max-w-md bg-neutral-900 text-white p-4 rounded-xl shadow-2xl border border-orange-500/50 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 no-print">
-          <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-          <div className="text-xs">
-            <span className="font-semibold block text-emerald-300">Exportation Réussie</span>
-            <p className="mt-0.5 text-neutral-200">{pdfNotification}</p>
+                </option>
+              ))}
+            </select>
           </div>
-          <button onClick={() => setPdfNotification(null)} className="ml-auto text-neutral-400 hover:text-white">
-            <X className="w-4 h-4" />
-          </button>
+
+          {!selectedPatientId && (
+            <div>
+              <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
+                Nom du client (si non listé) :
+              </label>
+              <input
+                type="text"
+                placeholder="ex: Jean Dupont"
+                value={customPatientName}
+                onChange={e => setCustomPatientName(e.target.value)}
+                className="w-full text-xs p-2 border border-neutral-300 rounded-lg bg-white"
+              />
+            </div>
+          )}
         </div>
+
+        {/* Cart Items List */}
+        <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+          {cart.length === 0 ? (
+            <div className="py-12 text-center text-neutral-400 text-xs italic">
+              Le panier est vide. Sélectionnez des produits à gauche.
+            </div>
+          ) : (
+            cart.map(item => (
+              <div key={item.productId} className="p-2.5 bg-neutral-50 rounded-xl border border-neutral-200 flex items-center justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <h5 className="font-bold text-neutral-900 text-xs truncate">{item.productName}</h5>
+                  <div className="text-[10px] text-neutral-500 font-mono">
+                    {formatMoney(item.patientPrice)} × {item.quantity} · <strong className="text-amber-700">+{item.pv * item.quantity} PV</strong>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => handleUpdateQuantity(item.productId, -1)}
+                    className="w-6 h-6 bg-white border border-neutral-300 rounded flex items-center justify-center hover:bg-neutral-100"
+                  >
+                    <Minus className="w-3 h-3 text-neutral-600" />
+                  </button>
+                  <span className="w-6 text-center font-mono font-bold text-xs">{item.quantity}</span>
+                  <button
+                    onClick={() => handleUpdateQuantity(item.productId, 1)}
+                    className="w-6 h-6 bg-white border border-neutral-300 rounded flex items-center justify-center hover:bg-neutral-100"
+                  >
+                    <Plus className="w-3 h-3 text-neutral-600" />
+                  </button>
+
+                  <span className="font-mono font-bold text-neutral-900 text-xs w-16 text-right">
+                    {formatMoney(item.subtotal)}
+                  </span>
+
+                  <button
+                    onClick={() => handleRemoveFromCart(item.productId)}
+                    className="text-neutral-400 hover:text-red-600 p-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Payment & Totals Section */}
+        {cart.length > 0 && (
+          <div className="space-y-3 pt-3 border-t border-neutral-200 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-700 mb-1">Mode de Paiement</label>
+                <select
+                  value={paymentMethod}
+                  onChange={e => setPaymentMethod(e.target.value as PaymentMethod)}
+                  className="w-full p-2 border border-neutral-300 rounded-lg bg-white font-medium"
+                >
+                  <option value="orange_money">Orange Money</option>
+                  <option value="mtn_momo">MTN Mobile Money</option>
+                  <option value="especes">Espèces (Caisse)</option>
+                  <option value="carte_bancaire">Carte Bancaire</option>
+                  <option value="virement">Virement</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-neutral-700 mb-1">Réf. Transaction</label>
+                <input
+                  type="text"
+                  placeholder="ex: OM-9876543"
+                  value={paymentRef}
+                  onChange={e => setPaymentRef(e.target.value)}
+                  className="w-full p-2 border border-neutral-300 rounded-lg font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-neutral-600">Remise exceptionnelle (FCFA) :</span>
+              <input
+                type="number"
+                value={discountAmount}
+                onChange={e => setDiscountAmount(Number(e.target.value))}
+                className="w-28 p-1.5 text-right border border-neutral-300 rounded-lg font-mono font-bold"
+              />
+            </div>
+
+            <div className="p-3 bg-orange-50/80 rounded-xl border border-orange-200 space-y-1 font-mono">
+              <div className="flex justify-between text-neutral-600 text-[11px]">
+                <span>Total Brut :</span>
+                <span>{formatMoney(totalGross)}</span>
+              </div>
+              <div className="flex justify-between text-xs font-bold text-neutral-900 pt-1 border-t border-orange-200">
+                <span>NET À PAYER :</span>
+                <span className="text-orange-600 text-base">{formatMoney(netTotal)}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-amber-700 pt-1">
+                <span>PV Réseau Générés :</span>
+                <span className="font-bold">{formatPV(totalPv)}</span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleCheckout}
+              className="w-full py-3 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-xs"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Encaisser et Imprimer le Reçu ({formatMoney(netTotal)})</span>
+            </button>
+          </div>
+        )}
+      </div>
+      </div>
       )}
 
-      {/* Header & Sub-nav toggle */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">
-            Caisse Enregistreuse & Factures (POS)
-          </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            Encaissement direct, déduction immédiate des stocks, factures officielles et suivi des PV
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center p-1 bg-neutral-200/80 rounded-xl">
-            <button
-              onClick={() => setActivePosTab('pos')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activePosTab === 'pos'
-                  ? 'bg-white text-orange-600 shadow-xs'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              <ShoppingCart className="w-3.5 h-3.5" />
-              <span>Caisse & Vente</span>
-            </button>
-            <button
-              onClick={() => setActivePosTab('invoices')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                activePosTab === 'invoices'
-                  ? 'bg-white text-orange-600 shadow-xs'
-                  : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Factures & Ventes ({sales.length})</span>
-            </button>
+      {/* VIEW 2: INVOICES & SALES HISTORY */}
+      {activePosTab === 'invoices' && (
+        <div className="space-y-4">
+          {/* KPI Strip */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-xs">
+              <span className="text-xs text-neutral-500 block">Chiffre d'Affaires Global</span>
+              <span className="text-xl font-bold text-neutral-900 font-mono mt-1 block">{formatMoney(totalInvoiced)}</span>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-xs">
+              <span className="text-xs text-neutral-500 block">Total PV Encaissés</span>
+              <span className="text-xl font-bold text-amber-700 font-mono mt-1 block">{formatPV(totalPvInvoiced)}</span>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-xs">
+              <span className="text-xs text-neutral-500 block">Commissions Partenaires</span>
+              <span className="text-xl font-bold text-emerald-600 font-mono mt-1 block">{formatMoney(totalCommissions)}</span>
+            </div>
           </div>
 
-          <div className="hidden sm:flex items-center gap-2 text-xs font-mono bg-neutral-100 px-3 py-1.5 rounded-lg text-neutral-600">
-            <span>Poste :</span>
-            <span className="font-bold text-neutral-900">{currentUser.fullName}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* VIEW 1: POS REGISTER */}
-      {activePosTab === 'pos' && (
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: Product Catalog (7 cols) */}
-        <div className="lg:col-span-7 bg-white rounded-xl border border-neutral-200 shadow-xs p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3">
+          {/* Search Bar */}
+          <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-xs flex items-center justify-between gap-3">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
               <input
                 type="text"
-                placeholder="Rechercher par article, médicament ou code..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Rechercher par N° reçu, client, parrain ou caissier..."
+                value={invoiceSearch}
+                onChange={e => setInvoiceSearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
               />
             </div>
-
-            <div className="flex items-center gap-1 bg-neutral-100 p-1 rounded-lg shrink-0 flex-wrap">
-              {[
-                { id: 'all', label: 'Tous' },
-                { id: 'regulateur', label: 'Régulateur' },
-                { id: 'nettoyage', label: 'Nettoyage' },
-                { id: 'entretien', label: 'Entretien' },
-                { id: 'alimentation', label: 'Alimentation' },
-                { id: 'soins', label: 'Soins' },
-                { id: 'services', label: 'Services' },
-              ].map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-2.5 py-1 text-xs rounded font-medium transition-all ${
-                    selectedCategory === cat.id ? 'bg-white text-orange-900 shadow-xs font-bold' : 'text-neutral-600'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
           </div>
 
-
-          {/* Product Items Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[560px] overflow-y-auto pr-1">
-            {filteredProducts.map(p => {
-              const isPhysical = p.category !== 'services';
-              const outOfStock = isPhysical && p.stockQuantity <= 0;
-
-
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => !outOfStock && handleAddToCart(p)}
-                  className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between ${
-                    outOfStock
-                      ? 'border-neutral-200 bg-neutral-50/70 opacity-60 cursor-not-allowed'
-                      : 'border-neutral-200 hover:border-orange-400 hover:shadow-xs cursor-pointer bg-white'
-                  }`}
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 font-semibold">
-                        {p.sku}
-                      </span>
-                      <span className="text-[10px] font-bold text-amber-700 font-mono">
-                        +{formatPV(p.pv)}
-                      </span>
-                    </div>
-
-                    <h4 className="text-xs font-semibold text-neutral-900 line-clamp-2">
-                      {p.name}
-                    </h4>
-                  </div>
-
-                  <div className="mt-3 pt-2 border-t border-neutral-100 flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-bold text-neutral-900 font-mono">
-                        {formatMoney(p.patientPrice)}
-                      </div>
-                      <div className="text-[10px] text-emerald-600 font-medium">
-                        Gain: +{formatMoney(p.directMargin)}
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      {isPhysical ? (
-                        <span className={`text-[11px] font-mono font-medium ${p.stockQuantity <= p.minStockThreshold ? 'text-red-600' : 'text-neutral-500'}`}>
-                          Stock: {p.stockQuantity}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-neutral-400">Service</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Right: Cart, Patient & Sponsor Linking, Checkout (5 cols) */}
-        <div className="lg:col-span-5 bg-white rounded-xl border border-neutral-200 shadow-xs p-5 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="w-4 h-4 text-orange-600" />
-              <h3 className="text-sm font-bold text-neutral-900">
-                Panier ({cart.length} article{cart.length > 1 ? 's' : ''})
-              </h3>
-            </div>
-            {cart.length > 0 && (
-              <button
-                onClick={() => setCart([])}
-                className="text-xs text-neutral-400 hover:text-red-600 transition-colors"
-              >
-                Vider
-              </button>
-            )}
-          </div>
-
-          {/* Patient & Parrain Linking Section */}
-          <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-2.5">
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
-                Client / Patient au comptoir :
-              </label>
-              <select
-                value={selectedPatientId}
-                onChange={e => handleSelectPatient(e.target.value)}
-                className="w-full text-xs p-2 border border-neutral-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-orange-500"
-              >
-                <option value="">-- Client Comptoir (Non enregistré) --</option>
-                {patients.map(pat => (
-                  <option key={pat.id} value={pat.id}>
-                    {pat.fullName} ({pat.phone}) · Parrain: {pat.sponsorPartnerName || 'N/A'}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Sponsor Partner (Auto-detected or selectable) */}
-            <div className="p-2.5 bg-orange-50/70 border border-orange-200 rounded-lg space-y-1">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-semibold text-orange-950 flex items-center gap-1">
-                  <LinkIcon className="w-3 h-3 text-orange-600" />
-                  <span>Partenaire Parrain (Bénéficiaire MLM) :</span>
-                </span>
-              </div>
-
-              <select
-                value={selectedPartnerId}
-                onChange={e => setSelectedPartnerId(e.target.value)}
-                className="w-full text-xs p-1.5 border border-orange-300 bg-white rounded-md text-neutral-900 font-medium"
-              >
-                <option value="">-- Aucun partenaire parrain (Vente directe) --</option>
-                {partners.map(ptn => (
-                  <option key={ptn.id} value={ptn.id}>
-                    {ptn.firstName} {ptn.lastName} ({ptn.code})
-                  </option>
-                ))}
-              </select>
-
-              {selectedPartner && (
-                <div className="text-[11px] text-orange-800 flex justify-between pt-1">
-                  <span>Gain parrain : <strong className="font-mono">+{formatMoney(totalPartnerMargin)}</strong></span>
-                  <span>PV parrain : <strong className="font-mono">+{formatPV(totalPv)}</strong></span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Cart Items List */}
-          <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-            {cart.length === 0 ? (
-              <div className="py-8 text-center text-neutral-400 text-xs">
-                Le panier est vide. Sélectionnez des produits ou services dans le catalogue à gauche.
-              </div>
-            ) : (
-              cart.map(item => (
-                <div
-                  key={item.productId}
-                  className="p-2.5 bg-neutral-50 rounded-lg border border-neutral-100 flex items-center justify-between gap-2 text-xs"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-neutral-900 truncate">
-                      {item.productName}
-                    </div>
-                    <div className="text-[10px] text-neutral-500 font-mono">
-                      {formatMoney(item.patientPrice)} × {item.quantity} · PV: {item.pv * item.quantity}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleUpdateQuantity(item.productId, -1)}
-                      className="w-6 h-6 rounded bg-white border border-neutral-200 flex items-center justify-center text-neutral-600 hover:bg-neutral-100"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="w-6 text-center font-bold font-mono text-neutral-900">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => handleUpdateQuantity(item.productId, 1)}
-                      className="w-6 h-6 rounded bg-white border border-neutral-200 flex items-center justify-center text-neutral-600 hover:bg-neutral-100"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => handleRemoveFromCart(item.productId)}
-                      className="p-1 text-neutral-400 hover:text-red-600 ml-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Discount & Totals */}
-          <div className="pt-3 border-t border-neutral-200 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-500">Sous-total Brut :</span>
-              <span className="font-mono font-medium text-neutral-900">{formatMoney(totalGross)}</span>
-            </div>
-
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-neutral-500 flex items-center gap-1">
-                <Percent className="w-3.5 h-3.5 text-neutral-400" />
-                <span>Remise commerciale (FCFA) :</span>
-              </span>
-              <input
-                type="number"
-                min={0}
-                max={totalGross}
-                value={discountAmount}
-                onChange={e => setDiscountAmount(Number(e.target.value))}
-                className="w-24 text-right p-1 border border-neutral-300 rounded font-mono text-xs"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-neutral-200 text-sm font-bold">
-              <span className="text-neutral-900">Net à Payer :</span>
-              <span className="font-mono text-red-600 text-base">{formatMoney(netTotal)}</span>
-            </div>
-          </div>
-
-          {/* Payment Method Selector */}
-          <div>
-            <label className="block text-[11px] font-semibold text-neutral-700 mb-1.5">
-              Mode de Règlement
-            </label>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('orange_money')}
-                className={`p-2 rounded-lg border font-medium flex items-center justify-center gap-1.5 transition-all ${
-                  paymentMethod === 'orange_money'
-                    ? 'border-orange-500 bg-orange-50 text-orange-900 font-bold'
-                    : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
-                }`}
-              >
-                <Smartphone className="w-3.5 h-3.5 text-orange-600" />
-                <span>Orange Money</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('mtn_momo')}
-                className={`p-2 rounded-lg border font-medium flex items-center justify-center gap-1.5 transition-all ${
-                  paymentMethod === 'mtn_momo'
-                    ? 'border-amber-500 bg-amber-50 text-amber-900 font-bold'
-                    : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
-                }`}
-              >
-                <Smartphone className="w-3.5 h-3.5 text-amber-600" />
-                <span>MTN MoMo</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('especes')}
-                className={`p-2 rounded-lg border font-medium flex items-center justify-center gap-1.5 transition-all ${
-                  paymentMethod === 'especes'
-                    ? 'border-neutral-800 bg-neutral-900 text-white font-bold'
-                    : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
-                }`}
-              >
-                <span>Espèces Guichet</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('carte')}
-                className={`p-2 rounded-lg border font-medium flex items-center justify-center gap-1.5 transition-all ${
-                  paymentMethod === 'carte'
-                    ? 'border-neutral-800 bg-neutral-900 text-white font-bold'
-                    : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
-                }`}
-              >
-                <CreditCard className="w-3.5 h-3.5" />
-                <span>Carte Bancaire</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Reference transaction */}
-          <div>
-            <input
-              type="text"
-              placeholder="Réf. transaction (ex: OM-83920)..."
-              value={paymentRef}
-              onChange={e => setPaymentRef(e.target.value)}
-              className="w-full text-xs p-2 border border-neutral-200 rounded-lg font-mono"
-            />
-          </div>
-
-          {/* Checkout Button */}
-          <button
-            onClick={handleCheckout}
-            disabled={cart.length === 0}
-            className={`w-full py-3 px-4 rounded-xl text-xs font-bold text-white shadow-sm transition-all flex items-center justify-center gap-2 ${
-              cart.length > 0
-                ? 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 cursor-pointer'
-                : 'bg-neutral-300 cursor-not-allowed'
-            }`}
-          >
-            <Printer className="w-4 h-4" />
-            <span>Valider l'Encaissement & Imprimer Ticket</span>
-          </button>
-        </div>
-      </div>
-      )}
-
-      {/* VIEW 2: FACTURES & HISTORIQUE DES VENTES */}
-      {activePosTab === 'invoices' && (
-        <div className="space-y-6">
-          {/* Summary KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-orange-50 text-orange-600">
-                <Receipt className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] text-neutral-400 block font-semibold uppercase">Total Encaissé</span>
-                <span className="text-xl font-black text-neutral-900 font-mono">{formatMoney(totalInvoiced)}</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-amber-50 text-amber-600">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] text-neutral-400 block font-semibold uppercase">Points Valeur (PV)</span>
-                <span className="text-xl font-black text-amber-600 font-mono">{formatPV(totalPvInvoiced)}</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-red-50 text-red-600">
-                <DollarSign className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[11px] text-neutral-400 block font-semibold uppercase">Gains Parrains (MLM)</span>
-                <span className="text-xl font-black text-red-600 font-mono">{formatMoney(totalCommissions)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Table Container */}
-          <div className="bg-white rounded-2xl border border-neutral-200 shadow-xs overflow-hidden">
-            <div className="p-4 border-b border-neutral-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-neutral-50/50">
-              <div className="relative flex-1 max-w-md">
-                <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Rechercher par N° ticket, nom du client ou caissier..."
-                  value={invoiceSearch}
-                  onChange={e => setInvoiceSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              <span className="text-xs text-neutral-500 font-medium">
-                {filteredSales.length} facture(s) trouvée(s)
-              </span>
-            </div>
-
+          {/* Sales Table */}
+          <div className="bg-white rounded-xl border border-neutral-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-neutral-50 text-neutral-500 uppercase tracking-wider text-[10px] border-b border-neutral-200">
+                <thead className="bg-neutral-50 text-neutral-500 font-semibold border-b border-neutral-200">
                   <tr>
-                    <th className="py-3 px-4">N° Facture / Reçu</th>
+                    <th className="py-3 px-4">N° Reçu</th>
                     <th className="py-3 px-4">Date & Heure</th>
-                    <th className="py-3 px-4">Client</th>
-                    <th className="py-3 px-4">Caissier</th>
+                    <th className="py-3 px-4">Client / Patient</th>
                     <th className="py-3 px-4">Parrain MLM</th>
-                    <th className="py-3 px-4">Articles</th>
-                    <th className="py-3 px-4">Règlement</th>
-                    <th className="py-3 px-4 text-right">Total Net</th>
-                    <th className="py-3 px-4 text-center">Actions</th>
+                    <th className="py-3 px-4 text-right">Montant Net</th>
+                    <th className="py-3 px-4 text-right">PV</th>
+                    <th className="py-3 px-4">Paiement</th>
+                    <th className="py-3 px-4 text-center">Statut</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-neutral-200">
+                <tbody className="divide-y divide-neutral-100 text-neutral-700">
                   {filteredSales.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="py-8 text-center text-neutral-400">
-                        Aucune facture trouvée pour cette recherche.
+                        Aucune facture enregistrée pour le moment.
                       </td>
                     </tr>
                   ) : (
                     filteredSales.map(sale => (
-                      <tr key={sale.id} className="hover:bg-neutral-50/70 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-neutral-900">
+                      <tr key={sale.id} className="hover:bg-neutral-50/80 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-orange-600">
                           {sale.receiptNumber}
                         </td>
-                        <td className="py-3 px-4 text-neutral-600 font-mono">
-                          {sale.date} <span className="text-neutral-400">· {sale.time}</span>
+                        <td className="py-3 px-4 text-neutral-500 font-mono text-[11px]">
+                          {sale.date} à {sale.time}
                         </td>
-                        <td className="py-3 px-4 font-semibold text-neutral-800">
+                        <td className="py-3 px-4 font-semibold text-neutral-900">
                           {sale.patientName}
                         </td>
                         <td className="py-3 px-4 text-neutral-600">
-                          {sale.cashierName}
-                        </td>
-                        <td className="py-3 px-4">
                           {sale.sponsorPartnerName ? (
-                            <div className="text-[11px]">
-                              <span className="font-semibold text-orange-950 block">{sale.sponsorPartnerName}</span>
-                              <span className="text-orange-600 font-mono">{sale.sponsorPartnerCode}</span>
+                            <div>
+                              <span className="font-semibold">{sale.sponsorPartnerName}</span>
+                              <span className="block text-[10px] font-mono text-orange-600">{sale.sponsorPartnerCode}</span>
                             </div>
                           ) : (
-                            <span className="text-neutral-400 italic">Sans parrain</span>
+                            <span className="text-neutral-400 italic">Vente directe</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-neutral-600 font-mono">
-                          {sale.items.reduce((sum, item) => sum + item.quantity, 0)} art.
+                        <td className="py-3 px-4 text-right font-mono font-bold text-neutral-900">
+                          {formatMoney(sale.netAmount)}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold text-amber-700">
+                          {formatPV(sale.totalPv)}
                         </td>
                         <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                            sale.status === 'annule' ? 'bg-red-100 text-red-700' : 'bg-neutral-100 text-neutral-700'
-                          }`}>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-neutral-100 text-neutral-800 uppercase">
                             {sale.paymentMethod}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-black text-neutral-900">
-                          {formatMoney(sale.netAmount)}
+                        <td className="py-3 px-4 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${sale.status === 'complete' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                            {sale.status === 'complete' ? 'Validé' : 'Annulé'}
+                          </span>
                         </td>
-                        <td className="py-3 px-4 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                            <button
-                              onClick={() => handleDownloadPdf(sale)}
-                              className="px-2 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold transition-colors inline-flex items-center gap-1 border border-orange-200"
-                              title="Télécharger la facture officielle en PDF"
-                            >
-                              <FileDown className="w-3.5 h-3.5" />
-                              <span>PDF</span>
-                            </button>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => {
                                 setLastSale(sale);
                                 setIsReceiptOpen(true);
                               }}
-                              className="px-2 py-1 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium transition-colors inline-flex items-center gap-1 border border-neutral-200"
-                              title="Afficher et imprimer le reçu"
+                              className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
+                              title="Afficher / Imprimer Reçu"
                             >
                               <Printer className="w-3.5 h-3.5" />
-                              <span>Reçu</span>
                             </button>
                             <button
-                              onClick={() => handleStartEditSale(sale)}
-                              className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold transition-colors inline-flex items-center gap-1 border border-blue-200"
-                              title="Modifier cette vente / reçu"
+                              onClick={() => handleDownloadPdf(sale)}
+                              className="p-1.5 text-neutral-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                              title="Télécharger Facture PDF"
                             >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              <span>Modifier</span>
+                              <Download className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => setSaleToDelete(sale)}
-                              className="px-2 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 font-semibold transition-colors inline-flex items-center gap-1 border border-red-200"
-                              title="Supprimer cette vente"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Supprimer</span>
-                            </button>
+                            {currentUser.role === 'admin' && (
+                              <>
+                                <button
+                                  onClick={() => handleStartEditSale(sale)}
+                                  className="p-1.5 text-neutral-400 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
+                                  title="Modifier"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setSaleToDelete(sale)}
+                                  className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Supprimer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -849,558 +279,94 @@ export const PosView: React.FC = () => {
         </div>
       )}
 
-      {/* Receipt & Invoice Modal */}
+      {/* RECEIPT / INVOICE MODAL */}
       {isReceiptOpen && lastSale && (
-        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className={`bg-white rounded-2xl w-full border border-neutral-200 shadow-2xl p-6 space-y-4 my-8 transition-all ${
-            receiptViewMode === 'invoice_a4' ? 'max-w-2xl' : 'max-w-sm'
-          }`}>
-            {/* Top Toolbar (hidden on print) */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 pb-3 no-print">
+        <div className="fixed inset-0 z-50 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-xl w-full overflow-hidden border border-neutral-200">
+            <div className="px-6 py-4 bg-neutral-900 text-white flex items-center justify-between">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-orange-400" />
+                <span>Reçu & Facture Officielle ({lastSale.receiptNumber})</span>
+              </h3>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  <Check className="w-4 h-4" /> Vente Encaissée
-                </span>
-                <span className="font-mono text-xs font-bold text-neutral-800">
-                  {lastSale.receiptNumber}
-                </span>
-              </div>
-
-              {/* Format Switcher */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center p-0.5 bg-neutral-100 rounded-lg text-[11px] font-semibold">
-                  <button
-                    onClick={() => setReceiptViewMode('invoice_a4')}
-                    className={`px-2.5 py-1 rounded-md transition-all ${
-                      receiptViewMode === 'invoice_a4'
-                        ? 'bg-white text-orange-700 shadow-xs'
-                        : 'text-neutral-500 hover:text-neutral-900'
-                    }`}
-                  >
-                    Facture A4
-                  </button>
-                  <button
-                    onClick={() => setReceiptViewMode('ticket')}
-                    className={`px-2.5 py-1 rounded-md transition-all ${
-                      receiptViewMode === 'ticket'
-                        ? 'bg-white text-orange-700 shadow-xs'
-                        : 'text-neutral-500 hover:text-neutral-900'
-                    }`}
-                  >
-                    Ticket 80mm
-                  </button>
-                </div>
-
-                {/* Primary Action: Download PDF */}
                 <button
                   onClick={() => handleDownloadPdf(lastSale)}
-                  className="px-3 py-1.5 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
-                  title="Télécharger la facture en format PDF officiel"
+                  className="px-2.5 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs font-semibold flex items-center gap-1"
                 >
-                  <FileDown className="w-3.5 h-3.5" />
-                  <span>PDF</span>
+                  <Download className="w-3 h-3" /> Télécharger PDF
                 </button>
-
-                {/* Print button */}
-                <button
-                  onClick={() => window.print()}
-                  className="px-3 py-1.5 bg-neutral-900 hover:bg-black text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
-                  title="Imprimer directement"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Imprimer</span>
-                </button>
-
-                {/* Modifier button */}
-                <button
-                  onClick={() => handleStartEditSale(lastSale)}
-                  className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
-                  title="Modifier les données de ce reçu"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Modifier</span>
-                </button>
-
-                {/* Supprimer button */}
-                <button
-                  onClick={() => setSaleToDelete(lastSale)}
-                  className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all"
-                  title="Supprimer définitivement ce reçu"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Supprimer</span>
-                </button>
-
-                {/* Close */}
-                <button
-                  onClick={() => setIsReceiptOpen(false)}
-                  className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-lg"
-                >
+                <button onClick={() => setIsReceiptOpen(false)} className="text-neutral-400 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* FORMAT 1: FACTURE COMMERCIALE A4 */}
-            {receiptViewMode === 'invoice_a4' ? (
-              <div className="print-page bg-white p-4 sm:p-6 rounded-xl border border-neutral-100 text-neutral-900 space-y-4 text-xs">
-                {/* Letterhead */}
-                <div className="flex items-start justify-between border-b-2 border-orange-600 pb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-red-600 to-orange-500 text-white flex items-center justify-center font-black text-base">
-                        W
-                      </div>
-                      <span className="text-lg font-black tracking-tight text-neutral-900">
-                        {companySettings?.name || 'WHIEDA SMART'}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-neutral-500 mt-0.5">
-                      {companySettings?.tagline || 'Cabinet de Santé, Pharmacie Naturelle & Prospérité Partagée'}
-                    </p>
-                    <p className="text-[10px] text-neutral-400">
-                      {companySettings?.address || 'Boulevard de la Liberté, Akwa - Douala, Cameroun'}
-                    </p>
-                    <p className="text-[10px] text-neutral-400">
-                      Tél : {companySettings?.phone || '(+237) 699 00 11 22'} · Email : {companySettings?.email || 'contact@whiedasmart.com'}
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] uppercase tracking-wider border border-emerald-200">
-                      Facture Acquittée
-                    </span>
-                    <div className="text-base font-black font-mono text-orange-600 mt-1">
-                      N° {lastSale.receiptNumber}
-                    </div>
-                    <div className="text-[10px] text-neutral-500 font-mono">
-                      Date : {lastSale.date} à {lastSale.time}
-                    </div>
-                  </div>
+            {/* Printable Receipt Body */}
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto text-xs font-mono text-neutral-800 bg-neutral-50">
+              <div className="bg-white p-6 rounded-xl border border-neutral-200 shadow-2xs space-y-4">
+                <div className="text-center space-y-1">
+                  <h2 className="font-bold text-base text-neutral-900">{companySettings.name}</h2>
+                  <p className="text-[11px] text-neutral-500 font-sans">{companySettings.address} · {companySettings.phone}</p>
+                  <p className="text-[11px] text-orange-600 font-bold font-sans">Boutique, Pharmacie & Cabinet de Santé Whieda</p>
                 </div>
 
-                {/* Client & Cashier Information */}
-                <div className="grid grid-cols-2 gap-3 p-3 bg-neutral-50 rounded-xl border border-neutral-200/80">
-                  <div>
-                    <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">Facturé à</span>
-                    <div className="font-extrabold text-neutral-900 text-sm mt-0.5">{lastSale.patientName}</div>
-                    {lastSale.sponsorPartnerName ? (
-                      <div className="text-[11px] text-orange-900 mt-1 font-medium">
-                        Parrain MLM : <span className="font-bold">{lastSale.sponsorPartnerName}</span> ({lastSale.sponsorPartnerCode})
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-neutral-400 italic mt-1">Client direct (sans parrain)</div>
-                    )}
-                  </div>
-
-                  <div className="text-right">
-                    <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">Modalités de Caisse</span>
-                    <div className="font-semibold text-neutral-800 mt-0.5">Caissier(e) : {lastSale.cashierName}</div>
-                    <div className="text-[11px] text-neutral-600 font-mono mt-0.5">
-                      Règlement : <span className="font-bold uppercase">{lastSale.paymentMethod}</span>
-                      {lastSale.paymentReference && ` (Réf: ${lastSale.paymentReference})`}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Items Table */}
-                <div className="border border-neutral-200 rounded-xl overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-neutral-100 text-neutral-600 uppercase text-[10px] font-bold border-b border-neutral-200">
-                      <tr>
-                        <th className="p-2.5">Code</th>
-                        <th className="p-2.5">Désignation</th>
-                        <th className="p-2.5 text-center">Qté</th>
-                        <th className="p-2.5 text-right">P.U (FCFA)</th>
-                        <th className="p-2.5 text-right">PV</th>
-                        <th className="p-2.5 text-right">Total (FCFA)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-100 text-neutral-800">
-                      {lastSale.items.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-neutral-50/50">
-                          <td className="p-2.5 font-mono text-neutral-500 text-[11px]">{item.sku}</td>
-                          <td className="p-2.5 font-bold text-neutral-900">{item.productName}</td>
-                          <td className="p-2.5 text-center font-mono">{item.quantity}</td>
-                          <td className="p-2.5 text-right font-mono text-neutral-600">{formatMoney(item.patientPrice)}</td>
-                          <td className="p-2.5 text-right font-mono font-bold text-amber-600">+{item.pv * item.quantity} PV</td>
-                          <td className="p-2.5 text-right font-mono font-bold text-neutral-900">{formatMoney(item.subtotal)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Financial Summary & Stamp */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                  {/* Left advice */}
-                  <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/80 text-[11px] text-amber-950 space-y-1">
-                    <span className="font-bold block text-amber-900">Conseils & Validité :</span>
-                    <p>• Conservez cette facture comme preuve d'achat et garantie de conformité.</p>
-                    <p>• Points de Valeur (PV) automatiquement crédités sur le compte du parrain.</p>
-                    <p className="text-[10px] text-amber-800 font-mono mt-1">Authentification : Système Whieda Meyomessala ERP</p>
-                  </div>
-
-                  {/* Right totals box */}
-                  <div className="bg-neutral-50 p-3.5 rounded-xl border border-neutral-200 text-xs space-y-1.5">
-                    <div className="flex justify-between text-neutral-600">
-                      <span>Sous-total Brut :</span>
-                      <span className="font-mono">{formatMoney(lastSale.totalAmount)}</span>
-                    </div>
-                    {lastSale.discountAmount > 0 && (
-                      <div className="flex justify-between text-red-600 font-semibold">
-                        <span>Remise commerciale :</span>
-                        <span className="font-mono">-{formatMoney(lastSale.discountAmount)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between font-black text-sm text-neutral-900 border-t border-neutral-300 pt-1.5">
-                      <span>TOTAL NET ACQUITTÉ :</span>
-                      <span className="font-mono text-orange-600 text-base">{formatMoney(lastSale.netAmount)}</span>
-                    </div>
-                    {lastSale.totalPv > 0 && (
-                      <div className="flex justify-between text-amber-700 font-bold text-[11px] pt-0.5">
-                        <span>Points Valeur Total :</span>
-                        <span>+{formatPV(lastSale.totalPv)}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Footer Stamp */}
-                <div className="pt-3 border-t border-neutral-200 flex items-center justify-between text-[10px] text-neutral-400">
-                  <span>Document officiel délivré au client le jour de la transaction.</span>
-                  <div className="font-mono font-semibold text-neutral-500">Whieda Meyomessala Caisse POS · Akwa Douala</div>
-                </div>
-              </div>
-            ) : (
-              /* FORMAT 2: TICKET THERMIQUE 80MM */
-              <div className="print-page text-center font-mono text-[11px] space-y-3 text-neutral-900 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
-                <div className="space-y-0.5">
-                  <div className="text-base font-extrabold tracking-tight">{companySettings?.name?.toUpperCase() || 'WHIEDA MEYOMESSALA'}</div>
-                  <div className="text-[10px]">Boutique Santé & Cabinet Médical</div>
-                  <div className="text-[10px]">Tél : (+237) 699 00 11 22 / 677 22 33 44</div>
-                  <div className="text-[10px]">Douala / Yaoundé - Cameroun</div>
-                </div>
-
-                <div className="border-y border-dashed border-neutral-300 py-1.5 text-left text-[10px] space-y-0.5">
-                  <div>Reçu N° : {lastSale.receiptNumber}</div>
-                  <div>Date : {lastSale.date} à {lastSale.time}</div>
-                  <div>Caissier : {lastSale.cashierName}</div>
-                  <div>Client : {lastSale.patientName}</div>
+                <div className="border-t border-b border-neutral-200 py-2 space-y-1 text-[11px]">
+                  <div className="flex justify-between"><span>N° Reçu :</span><strong>{lastSale.receiptNumber}</strong></div>
+                  <div className="flex justify-between"><span>Date :</span><span>{lastSale.date} à {lastSale.time}</span></div>
+                  <div className="flex justify-between"><span>Client / Patient :</span><strong>{lastSale.patientName}</strong></div>
                   {lastSale.sponsorPartnerName && (
-                    <div className="font-bold text-orange-900">
-                      Parrain MLM : {lastSale.sponsorPartnerName} ({lastSale.sponsorPartnerCode})
-                    </div>
+                    <div className="flex justify-between text-orange-700"><span>Parrain MLM :</span><strong>{lastSale.sponsorPartnerName} ({lastSale.sponsorPartnerCode})</strong></div>
                   )}
+                  <div className="flex justify-between"><span>Caissier :</span><span>{lastSale.cashierName}</span></div>
                 </div>
 
-                {/* Items Table */}
-                <div className="text-left space-y-1.5">
-                  {lastSale.items.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-start text-[10px]">
-                      <div className="flex-1 pr-2">
-                        <div>{item.productName}</div>
-                        <div className="text-neutral-500">{item.quantity} × {formatMoney(item.patientPrice)}</div>
-                      </div>
-                      <div className="font-bold font-mono">{formatMoney(item.subtotal)}</div>
-                    </div>
-                  ))}
-                </div>
+                <table className="w-full text-left text-[11px]">
+                  <thead>
+                    <tr className="border-b border-neutral-200 text-neutral-500">
+                      <th className="py-1">Article</th>
+                      <th className="py-1 text-center">Qté</th>
+                      <th className="py-1 text-right">P.U</th>
+                      <th className="py-1 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {lastSale.items.map((it, idx) => (
+                      <tr key={idx}>
+                        <td className="py-1.5 pr-2 font-sans">{it.productName}</td>
+                        <td className="py-1.5 text-center">{it.quantity}</td>
+                        <td className="py-1.5 text-right">{formatMoney(it.patientPrice)}</td>
+                        <td className="py-1.5 text-right font-bold">{formatMoney(it.subtotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
-                <div className="border-t border-dashed border-neutral-300 pt-2 space-y-1 text-right text-xs">
-                  <div className="flex justify-between">
-                    <span>Sous-total :</span>
-                    <span>{formatMoney(lastSale.totalAmount)}</span>
-                  </div>
+                <div className="border-t border-neutral-200 pt-3 space-y-1 text-right">
+                  <div className="flex justify-between"><span>Total Brut :</span><span>{formatMoney(lastSale.totalAmount)}</span></div>
                   {lastSale.discountAmount > 0 && (
-                    <div className="flex justify-between text-red-600">
-                      <span>Remise :</span>
-                      <span>-{formatMoney(lastSale.discountAmount)}</span>
-                    </div>
+                    <div className="flex justify-between text-emerald-600"><span>Remise :</span><span>-{formatMoney(lastSale.discountAmount)}</span></div>
                   )}
-                  <div className="flex justify-between font-bold text-sm border-t border-neutral-900 pt-1">
-                    <span>TOTAL NET :</span>
-                    <span>{formatMoney(lastSale.netAmount)}</span>
+                  <div className="flex justify-between text-sm font-bold text-neutral-900 pt-1 border-t border-dashed">
+                    <span>TOTAL NET À PAYER :</span>
+                    <span className="text-orange-600">{formatMoney(lastSale.netAmount)}</span>
                   </div>
-                  <div className="flex justify-between text-[10px] text-neutral-500">
-                    <span>Paiement ({lastSale.paymentMethod.toUpperCase()}) :</span>
-                    <span>{formatMoney(lastSale.netAmount)}</span>
+                  <div className="flex justify-between text-[11px] text-amber-700 pt-1 font-bold">
+                    <span>Total PV Attribués :</span>
+                    <span>{formatPV(lastSale.totalPv)}</span>
                   </div>
-                  {lastSale.totalPv > 0 && (
-                    <div className="flex justify-between text-[10px] text-amber-700 font-bold">
-                      <span>PV Crédités :</span>
-                      <span>+{formatPV(lastSale.totalPv)}</span>
-                    </div>
-                  )}
                 </div>
 
-                <div className="border-t border-dashed border-neutral-300 pt-2 text-[9px] text-neutral-500">
-                  Merci de votre visite et bonne guérison !<br />
-                  Les produits naturels Whieda ne se substituent pas à un avis médical.
+                <div className="text-center text-[10px] text-neutral-400 font-sans pt-4 border-t border-neutral-100">
+                  Merci pour votre confiance ! · Whieda Smart © 2026
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      )}
+            </div>
 
-      {/* ========================================================= */}
-      {/* MODAL : MODIFIER UNE VENTE / REÇU CAISSE                 */}
-      {/* ========================================================= */}
-      {editingSale && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-8 animate-in fade-in zoom-in duration-150">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="p-1.5 bg-blue-100 text-blue-700 rounded-lg">
-                  <Edit3 className="w-4 h-4" />
-                </span>
-                <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    Modifier la Vente / Reçu Caisse
-                  </h3>
-                  <p className="text-[11px] font-mono text-orange-600 font-semibold">
-                    {editingSale.receiptNumber}
-                  </p>
-                </div>
-              </div>
+            <div className="px-6 py-3 bg-neutral-100 flex items-center justify-end gap-2">
               <button
-                onClick={() => setEditingSale(null)}
-                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+                onClick={() => handleDownloadPdf(lastSale)}
+                className="px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-lg text-xs font-bold shadow-xs flex items-center gap-1.5"
               >
-                <X className="w-4 h-4" />
+                <Download className="w-3.5 h-3.5" /> Télécharger Facture PDF
               </button>
-            </div>
-
-            {/* Edit Form */}
-            <form onSubmit={handleSaveSaleEdit} className="space-y-4">
-              {/* Date & Heure */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Date de la Vente *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={editSaleForm.date}
-                    onChange={e => setEditSaleForm(prev => ({ ...prev, date: e.target.value }))}
-                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Heure *
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={editSaleForm.time}
-                    onChange={e => setEditSaleForm(prev => ({ ...prev, time: e.target.value }))}
-                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              {/* Client Name */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Nom du Patient / Client *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Nom complet du client"
-                  value={editSaleForm.patientName}
-                  onChange={e => setEditSaleForm(prev => ({ ...prev, patientName: e.target.value }))}
-                  className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden font-medium"
-                />
-              </div>
-
-              {/* Parrain MLM */}
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Parrain MLM Rattaché (Bénéficiaire des PV & Commissions)
-                </label>
-                <select
-                  value={editSaleForm.sponsorPartnerId}
-                  onChange={e => setEditSaleForm(prev => ({ ...prev, sponsorPartnerId: e.target.value }))}
-                  className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden font-medium"
-                >
-                  <option value="">-- Aucun parrain (Vente Interne Whieda) --</option>
-                  {partners.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.firstName} {p.lastName} ({p.code}) — {p.level}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Mode de règlement & Référence */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Mode de Règlement *
-                  </label>
-                  <select
-                    value={editSaleForm.paymentMethod}
-                    onChange={e => setEditSaleForm(prev => ({ ...prev, paymentMethod: e.target.value as PaymentMethod }))}
-                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden font-medium"
-                  >
-                    <option value="orange_money">Orange Money</option>
-                    <option value="mtn_momo">MTN MoMo</option>
-                    <option value="especes">Espèces (Cash)</option>
-                    <option value="carte">Carte Bancaire / Virement</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Référence Reçu / Tx
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="ex: OM-2026-991"
-                    value={editSaleForm.paymentReference}
-                    onChange={e => setEditSaleForm(prev => ({ ...prev, paymentReference: e.target.value }))}
-                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              {/* Remise & Statut */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Remise Commerciale (FCFA)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="500"
-                    value={editSaleForm.discountAmount}
-                    onChange={e => setEditSaleForm(prev => ({ ...prev, discountAmount: Number(e.target.value) }))}
-                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Statut de la Facture
-                  </label>
-                  <select
-                    value={editSaleForm.status}
-                    onChange={e => setEditSaleForm(prev => ({ ...prev, status: e.target.value as 'complete' | 'annule' }))}
-                    className="w-full px-3 py-2 text-xs bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:border-blue-500 focus:outline-hidden font-bold"
-                  >
-                    <option value="complete">Encaissée / Complète</option>
-                    <option value="annule">Annulée</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Articles Summary Info */}
-              <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2 text-xs">
-                <span className="text-neutral-500 font-semibold block text-[11px] uppercase tracking-wider">
-                  Articles Vendus sur ce Ticket ({editingSale.items.length})
-                </span>
-                <div className="max-h-24 overflow-y-auto space-y-1">
-                  {editingSale.items.map((it, idx) => (
-                    <div key={idx} className="flex justify-between text-[11px] text-neutral-700">
-                      <span>{it.quantity}x {it.productName}</span>
-                      <span className="font-mono font-bold">{formatMoney(it.subtotal)}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="pt-2 border-t border-neutral-200 flex justify-between items-center text-xs">
-                  <span className="text-neutral-600">Sous-total Brut :</span>
-                  <span className="font-mono font-bold">{formatMoney(editingSale.totalAmount)}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-neutral-600">Nouveau Net à Payer :</span>
-                  <span className="font-mono font-black text-orange-600 text-sm">
-                    {formatMoney(Math.max(0, editingSale.totalAmount - (Number(editSaleForm.discountAmount) || 0)))}
-                  </span>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
-                <button
-                  type="button"
-                  onClick={() => setEditingSale(null)}
-                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-semibold"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-1.5"
-                >
-                  <Check className="w-4 h-4" />
-                  <span>Enregistrer les Modifications</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* MODAL : CONFIRMER LA SUPPRESSION D'UN REÇU CAISSE         */}
-      {/* ========================================================= */}
-      {saleToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
-            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-2">
-              <h3 className="text-base font-bold text-neutral-900">
-                Confirmer la suppression du reçu ?
-              </h3>
-              <p className="text-xs text-neutral-600">
-                Vous êtes sur le point de supprimer définitivement la vente : <br />
-                <strong className="text-orange-600 font-mono font-bold text-sm">
-                  {saleToDelete.receiptNumber}
-                </strong>
-                <br />
-                Client : <strong>{saleToDelete.patientName}</strong> · Montant : <strong>{formatMoney(saleToDelete.netAmount)}</strong>
-              </p>
-
-              {/* Warning box */}
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-left text-[11px] text-red-800 space-y-1">
-                <div className="flex items-center gap-1.5 font-bold text-red-900">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  <span>Conséquences automatiques de la suppression :</span>
-                </div>
-                <p>• Les <strong>{saleToDelete.items.reduce((s, i) => s + i.quantity, 0)} articles</strong> vendus seront automatiquement remis en stock dans la pharmacie/boutique.</p>
-                {saleToDelete.sponsorPartnerId && (
-                  <p>• Les <strong>{formatPV(saleToDelete.totalPv)} PV</strong> et commissions crédités au parrain (<strong>{saleToDelete.sponsorPartnerName}</strong>) seront annulés.</p>
-                )}
-                <p className="font-semibold pt-0.5">• Cette opération sera consignée dans le Journal d'Audit administrateur.</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                onClick={() => setSaleToDelete(null)}
-                className="flex-1 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-semibold"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleConfirmDeleteSale}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center justify-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Confirmer la Suppression</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
+         
