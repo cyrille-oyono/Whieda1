@@ -28,7 +28,6 @@ import {
   ClipboardList, 
   CheckCircle 
 } from 'lucide-react';
-
 const AVAILABLE_MODULES = [
   { id: 'showcase', label: "Page d'Accueil Vitrine", icon: <Globe className="w-3.5 h-3.5" />, description: "Présentation des soins et pharmacie" },
   { id: 'products', label: 'Catalogue & Produits', icon: <Package className="w-3.5 h-3.5" />, description: "Consultation et inventaire des produits" },
@@ -43,7 +42,6 @@ const AVAILABLE_MODULES = [
   { id: 'audit', label: "Journal d'Audit (Logs)", icon: <ShieldAlert className="w-3.5 h-3.5" />, description: "Traçabilité des actions sensibles" },
   { id: 'database', label: 'Script Supabase & Arch.', icon: <Database className="w-3.5 h-3.5" />, description: "Architecture technique" },
 ];
-
 export const UsersView: React.FC = () => {
   const { 
     users, 
@@ -58,12 +56,10 @@ export const UsersView: React.FC = () => {
     deleteRole, 
     resetDefaultCredentials 
   } = useApp();
-
   const [activeSubTab, setActiveSubTab] = useState<'employees' | 'roles'>('employees');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [roleSearchTerm, setRoleSearchTerm] = useState('');
-
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     fullName: '',
@@ -73,7 +69,6 @@ export const UsersView: React.FC = () => {
     role: 'receptionist' as UserRole,
     department: 'Accueil & Registre',
   });
-
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState({
     fullName: '',
@@ -84,7 +79,6 @@ export const UsersView: React.FC = () => {
     department: '',
     active: true,
   });
-
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
   const [createRoleForm, setCreateRoleForm] = useState({
@@ -93,7 +87,6 @@ export const UsersView: React.FC = () => {
     color: 'blue',
     allowedTabs: ['showcase', 'products'],
   });
-
   const [editingRole, setEditingRole] = useState<RoleDefinition | null>(null);
   const [editRoleForm, setEditRoleForm] = useState({
     name: '',
@@ -101,28 +94,23 @@ export const UsersView: React.FC = () => {
     color: 'blue',
     allowedTabs: [] as string[],
   });
-
   const [roleToDelete, setRoleToDelete] = useState<RoleDefinition | null>(null);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
   };
-
   const copyToClipboard = (text: string, keyName: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(keyName);
     setTimeout(() => setCopiedKey(null), 2000);
   };
-
   const getRoleDisplayName = (roleId: string) => {
     const found = roles.find(r => r.id === roleId);
     return found ? found.name : getRoleLabel(roleId as UserRole);
   };
-
   const handleOpenCreate = () => {
     setCreateForm({
       fullName: '',
@@ -134,14 +122,12 @@ export const UsersView: React.FC = () => {
     });
     setIsCreateModalOpen(true);
   };
-
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!createForm.fullName.trim()) {
       showToast('Veuillez renseigner le nom complet.', 'error');
       return;
     }
-
     addUser({
       fullName: createForm.fullName.trim(),
       phone: createForm.phone.trim() || undefined,
@@ -150,11 +136,9 @@ export const UsersView: React.FC = () => {
       department: createForm.department.trim() || undefined,
       active: true,
     }, createForm.password.trim() || 'Whieda@2026!');
-
     setIsCreateModalOpen(false);
     showToast(`Compte créé pour ${createForm.fullName}.`);
   };
-
   const handleOpenEdit = (user: User) => {
     setEditingUser(user);
     setEditForm({
@@ -167,11 +151,9 @@ export const UsersView: React.FC = () => {
       active: user.active,
     });
   };
-
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-
     updateUser(editingUser.id, {
       fullName: editForm.fullName.trim(),
       phone: editForm.phone.trim() || undefined,
@@ -181,24 +163,20 @@ export const UsersView: React.FC = () => {
       department: editForm.department.trim() || undefined,
       active: editForm.active,
     });
-
     showToast(`Informations de ${editForm.fullName} mises à jour.`);
     setEditingUser(null);
   };
-
   const handleConfirmDelete = () => {
     if (!userToDelete) return;
     deleteUser(userToDelete.id);
     showToast(`Compte employé ${userToDelete.fullName} supprimé.`);
     setUserToDelete(null);
   };
-
   const handleResetCredentialsConfirm = () => {
     resetDefaultCredentials();
     setIsResetConfirmOpen(false);
     showToast('Identifiants par défaut restaurés avec succès.', 'success');
   };
-
   const toggleTabInForm = (tabId: string, formType: 'create' | 'edit') => {
     if (formType === 'create') {
       setCreateRoleForm(prev => {
@@ -212,19 +190,16 @@ export const UsersView: React.FC = () => {
       });
     }
   };
-
   const filteredUsers = users.filter(u => {
     const q = searchTerm.toLowerCase();
     const matchesSearch = u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.phone && u.phone.toLowerCase().includes(q));
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
     return matchesSearch && matchesRole;
   });
-
   const filteredRoles = roles.filter(r => {
     const q = roleSearchTerm.toLowerCase();
     return r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q);
   });
-
   return (
     <div className="space-y-6">
       {toastMessage && (
@@ -233,13 +208,11 @@ export const UsersView: React.FC = () => {
           <button onClick={() => setToastMessage(null)} className="text-white/70 hover:text-white">✕</button>
         </div>
       )}
-
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 tracking-tight">Gestion du Personnel, Accès & Rôles (RBAC)</h1>
           <p className="text-xs text-neutral-500 mt-1">Création des identifiants et affectation des rôles</p>
         </div>
-
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsResetConfirmOpen(true)}
@@ -248,7 +221,6 @@ export const UsersView: React.FC = () => {
             <RotateCcw className="w-3.5 h-3.5 text-orange-600" />
             <span>Accès par Défaut</span>
           </button>
-
           {activeSubTab === 'employees' ? (
             <button
               onClick={handleOpenCreate}
@@ -271,7 +243,6 @@ export const UsersView: React.FC = () => {
           )}
         </div>
       </div>
-
       <div className="flex items-center gap-2 border-b border-neutral-200 pb-2">
         <button
           onClick={() => setActiveSubTab('employees')}
@@ -288,7 +259,6 @@ export const UsersView: React.FC = () => {
           <span>Rôles & Droits ({roles.length})</span>
         </button>
       </div>
-
       {activeSubTab === 'employees' && (
         <div className="space-y-6">
           <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl space-y-3">
@@ -304,7 +274,6 @@ export const UsersView: React.FC = () => {
               <span>{copiedKey === 'admin' ? 'Copié !' : 'Copier Admin Tél'}</span>
             </button>
           </div>
-
           <div className="bg-white p-4 rounded-2xl border border-neutral-200 flex items-center justify-between gap-3">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
@@ -317,7 +286,6 @@ export const UsersView: React.FC = () => {
               />
             </div>
           </div>
-
           <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
             <table className="w-full text-left text-xs">
               <thead className="bg-neutral-50 text-neutral-500 font-semibold border-b uppercase text-[10px]">
@@ -353,7 +321,6 @@ export const UsersView: React.FC = () => {
           </div>
         </div>
       )}
-
       {activeSubTab === 'roles' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -372,7 +339,6 @@ export const UsersView: React.FC = () => {
           </div>
         </div>
       )}
-
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 bg-neutral-900/65 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 text-xs">
@@ -392,7 +358,6 @@ export const UsersView: React.FC = () => {
           </div>
         </div>
       )}
-
       {editingUser && (
         <div className="fixed inset-0 z-50 bg-neutral-900/65 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 text-xs">
@@ -412,7 +377,6 @@ export const UsersView: React.FC = () => {
           </div>
         </div>
       )}
-
       {(isCreateRoleModalOpen || editingRole) && (
         <div className="fixed inset-0 z-50 bg-neutral-900/65 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
@@ -435,7 +399,6 @@ export const UsersView: React.FC = () => {
                   })}
                 </div>
               </div>
-
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => { setIsCreateRoleModalOpen(false); setEditingRole(null); }} className="px-3 py-1.5 border rounded">Annuler</button>
                 <button type="submit" className="px-3 py-1.5 bg-orange-600 text-white rounded font-bold">Valider</button>
@@ -444,7 +407,6 @@ export const UsersView: React.FC = () => {
           </div>
         </div>
       )}
-
       {userToDelete && (
         <div className="fixed inset-0 z-50 bg-neutral-900/65 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4 text-xs">
@@ -457,7 +419,6 @@ export const UsersView: React.FC = () => {
           </div>
         </div>
       )}
-
       {isResetConfirmOpen && (
         <div className="fixed inset-0 z-50 bg-neutral-900/65 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4 text-xs">
