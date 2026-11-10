@@ -1,269 +1,371 @@
-              <div className="p-3 bg-white rounded-xl border border-red-200 shadow-2xs flex flex-col justify-between space-y-2">
-                <div>
-                  <div className="flex items-center justify-between font-bold text-neutral-900">
-                    <span>👑 Administrateur</span>
-                    <span className="text-[10px] bg-red-100 text-red-800 px-1.5 py-0.5 rounded">Admin</span>
-                  </div>
-                  <div className="text-[11px] text-neutral-500 font-mono mt-1 space-y-0.5">
-                    <div>Tél : <strong>+237 600000001</strong></div>
-                    <div>Pass : <strong className="text-red-600">Whieda@2026!</strong></div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => copyToClipboard('+237 600000001', 'admin-phone')}
-                  className="w-full py-1.5 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-lg text-[11px] font-semibold text-neutral-700 flex items-center justify-center gap-1 transition-colors"
-                >
-                  {copiedKey === 'admin-phone' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedKey === 'admin-phone' ? 'Copié !' : 'Copier l’identifiant'}</span>
-                </button>
-              </div>
+import React, { useState } from 'react';
+import { useApp } from '../context/AppContext';
+import { UserRole, User, RoleDefinition } from '../types';
+import { getRoleLabel } from '../utils/formatters';
+import { 
+  UserCog, 
+  Plus, 
+  X, 
+  AlertTriangle, 
+  Edit3, 
+  Trash2, 
+  Search, 
+  Users, 
+  Stethoscope, 
+  ShoppingCart, 
+  Truck, 
+  Wallet, 
+  ShieldAlert, 
+  Database, 
+  Boxes, 
+  Key, 
+  Copy, 
+  Check, 
+  RotateCcw, 
+  Layers, 
+  Globe, 
+  Package, 
+  ClipboardList, 
+  CheckCircle 
+} from 'lucide-react';
 
-              {/* Accountant */}
-              <div className="p-3 bg-white rounded-xl border border-blue-200 shadow-2xs flex flex-col justify-between space-y-2">
-                <div>
-                  <div className="flex items-center justify-between font-bold text-neutral-900">
-                    <span>💼 Comptable</span>
-                    <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">Finance</span>
-                  </div>
-                  <div className="text-[11px] text-neutral-500 font-mono mt-1 space-y-0.5">
-                    <div>Tél : <strong>+237 600000003</strong></div>
-                    <div>Pass : <strong className="text-blue-600">Whieda@2026!</strong></div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => copyToClipboard('+237 600000003', 'acc-phone')}
-                  className="w-full py-1.5 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-lg text-[11px] font-semibold text-neutral-700 flex items-center justify-center gap-1 transition-colors"
-                >
-                  {copiedKey === 'acc-phone' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedKey === 'acc-phone' ? 'Copié !' : 'Copier l’identifiant'}</span>
-                </button>
-              </div>
+const AVAILABLE_MODULES = [
+  { id: 'showcase', label: "Page d'Accueil Vitrine", icon: <Globe className="w-3.5 h-3.5" />, description: "Présentation des soins et pharmacie" },
+  { id: 'products', label: 'Catalogue & Produits', icon: <Package className="w-3.5 h-3.5" />, description: "Consultation et inventaire des produits" },
+  { id: 'stock', label: 'Gestion du Stock & Ventes', icon: <Boxes className="w-3.5 h-3.5" />, description: "Suivi des quantités et alertes de rupture" },
+  { id: 'visits', label: 'Registre des Visites', icon: <ClipboardList className="w-3.5 h-3.5" />, description: "Accueil des patients et parrainages" },
+  { id: 'medical', label: 'Espace Médecin & Bilans', icon: <Stethoscope className="w-3.5 h-3.5" />, description: "Consultations et dossiers médicaux" },
+  { id: 'pos', label: 'Caisse & Factures', icon: <ShoppingCart className="w-3.5 h-3.5" />, description: "Encaissements comptoir et reçus" },
+  { id: 'suppliers', label: 'Commandes de Stock', icon: <Truck className="w-3.5 h-3.5" />, description: "Gestion des approvisionnements" },
+  { id: 'overview', label: 'Finance, Dépenses & Bilan', icon: <Wallet className="w-3.5 h-3.5" />, description: "Trésorerie et suivi paiements" },
+  { id: 'partners', label: 'Partenaires & MLM (PV)', icon: <Users className="w-3.5 h-3.5" />, description: "Arborescence réseau et calculs PV" },
+  { id: 'users', label: 'Personnel & Accès (RBAC)', icon: <UserCog className="w-3.5 h-3.5" />, description: "Gestion des comptes employés" },
+  { id: 'audit', label: "Journal d'Audit (Logs)", icon: <ShieldAlert className="w-3.5 h-3.5" />, description: "Traçabilité des actions sensibles" },
+  { id: 'database', label: 'Script Supabase & Arch.', icon: <Database className="w-3.5 h-3.5" />, description: "Architecture technique" },
+];
 
-              {/* Doctor */}
-              <div className="p-3 bg-white rounded-xl border border-rose-200 shadow-2xs flex flex-col justify-between space-y-2">
-                <div>
-                  <div className="flex items-center justify-between font-bold text-neutral-900">
-                    <span>🩺 Médecin</span>
-                    <span className="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded">Santé</span>
-                  </div>
-                  <div className="text-[11px] text-neutral-500 font-mono mt-1 space-y-0.5">
-                    <div>Tél : <strong>+237 600000002</strong></div>
-                    <div>Pass : <strong className="text-rose-600">Whieda@2026!</strong></div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => copyToClipboard('+237 600000002', 'doc-phone')}
-                  className="w-full py-1.5 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-lg text-[11px] font-semibold text-neutral-700 flex items-center justify-center gap-1 transition-colors"
-                >
-                  {copiedKey === 'doc-phone' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedKey === 'doc-phone' ? 'Copié !' : 'Copier l’identifiant'}</span>
-                </button>
-              </div>
+export const UsersView: React.FC = () => {
+  const { 
+    users, 
+    addUser, 
+    updateUser, 
+    deleteUser, 
+    toggleUserStatus, 
+    currentUser, 
+    roles, 
+    addRole, 
+    updateRole, 
+    deleteRole, 
+    resetDefaultCredentials 
+  } = useApp();
 
-              {/* Receptionist */}
-              <div className="p-3 bg-white rounded-xl border border-orange-200 shadow-2xs flex flex-col justify-between space-y-2">
-                <div>
-                  <div className="flex items-center justify-between font-bold text-neutral-900">
-                    <span>🛎️ Réceptionniste</span>
-                    <span className="text-[10px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded">Accueil</span>
-                  </div>
-                  <div className="text-[11px] text-neutral-500 font-mono mt-1 space-y-0.5">
-                    <div>Tél : <strong>+237 600000005</strong></div>
-                    <div>Pass : <strong className="text-orange-600">Whieda@2026!</strong></div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => copyToClipboard('+237 600000005', 'rec-phone')}
-                  className="w-full py-1.5 bg-neutral-50 hover:bg-neutral-100 border border-neutral-200 rounded-lg text-[11px] font-semibold text-neutral-700 flex items-center justify-center gap-1 transition-colors"
-                >
-                  {copiedKey === 'rec-phone' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedKey === 'rec-phone' ? 'Copié !' : 'Copier l’identifiant'}</span>
-                </button>
-              </div>
-            </div>
-          </div>
+  const [activeSubTab, setActiveSubTab] = useState<'employees' | 'roles'>('employees');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [roleSearchTerm, setRoleSearchTerm] = useState('');
 
-          {/* Search & Role Filter Bar */}
-          <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="relative flex-1 w-full">
-              <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
-              <input
-                type="text"
-                placeholder="Rechercher par nom, téléphone, email ou département..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    fullName: '',
+    phone: '',
+    email: '',
+    password: 'Whieda@2026!',
+    role: 'receptionist' as UserRole,
+    department: 'Accueil & Registre',
+  });
 
-            <select
-              value={roleFilter}
-              onChange={e => setRoleFilter(e.target.value)}
-              className="px-3 py-2 text-xs border border-neutral-200 rounded-xl bg-white font-medium text-neutral-700 w-full sm:w-auto"
-            >
-              <option value="all">Tous les rôles ({users.length})</option>
-              {roles.map(r => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </select>
-          </div>
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({
+    fullName: '',
+    phone: '',
+    email: '',
+    password: '',
+    role: 'receptionist' as UserRole,
+    department: '',
+    active: true,
+  });
 
-          {/* Users Table */}
-          <div className="bg-white rounded-2xl border border-neutral-200 shadow-xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-neutral-50 text-neutral-500 font-semibold border-b border-neutral-200 uppercase text-[10px]">
-                  <tr>
-                    <th className="py-3 px-4">Employé</th>
-                    <th className="py-3 px-4">Rôle / Profil RBAC</th>
-                    <th className="py-3 px-4">Téléphone / Identifiant</th>
-                    <th className="py-3 px-4">Département</th>
-                    <th className="py-3 px-4 text-center">Statut</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-100 text-neutral-800 font-medium">
-                  {filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-12 text-center text-neutral-400 italic">
-                        Aucun employé trouvé.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map(u => (
-                      <tr key={u.id} className="hover:bg-neutral-50/80 transition-colors">
-                        <td className="py-3.5 px-4">
-                          <div className="font-bold text-neutral-900 flex items-center gap-2">
-                            <span>{u.fullName}</span>
-                            {u.id === currentUser.id && (
-                              <span className="px-1.5 py-0.5 bg-orange-100 text-orange-800 text-[9px] rounded font-bold">Vous</span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-neutral-400 font-mono">{u.email}</div>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-800 border border-neutral-200">
-                            {getRoleDisplayName(u.role)}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono font-bold text-neutral-900">
-                          {u.phone || 'Non renseigné'}
-                        </td>
-                        <td className="py-3.5 px-4 text-neutral-600">
-                          {u.department || 'Général'}
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <button
-                            onClick={() => {
-                              toggleUserStatus(u.id);
-                              showToast(`Statut de ${u.fullName} mis à jour.`, 'info');
-                            }}
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
-                              u.active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-red-50 text-red-700 hover:bg-red-100'
-                            }`}
-                            title="Cliquer pour basculer le statut Actif / Inactif"
-                          >
-                            {u.active ? 'Actif' : 'Inactif'}
-                          </button>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleOpenEdit(u)}
-                              className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition-colors"
-                              title="Modifier les accès"
-                            >
-                              <Edit3 className="w-3.5 h-3.5 text-orange-600" />
-                            </button>
-                            {u.id !== currentUser.id && (
-                              <button
-                                onClick={() => setUserToDelete(u)}
-                                className="p-1.5 bg-neutral-100 hover:bg-red-50 text-neutral-400 hover:text-red-600 rounded-lg transition-colors"
-                                title="Supprimer le collaborateur"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [isCreateRoleModalOpen, setIsCreateRoleModalOpen] = useState(false);
+  const [createRoleForm, setCreateRoleForm] = useState({
+    name: '',
+    description: '',
+    color: 'blue',
+    allowedTabs: ['showcase', 'products'],
+  });
+
+  const [editingRole, setEditingRole] = useState<RoleDefinition | null>(null);
+  const [editRoleForm, setEditRoleForm] = useState({
+    name: '',
+    description: '',
+    color: 'blue',
+    allowedTabs: [] as string[],
+  });
+
+  const [roleToDelete, setRoleToDelete] = useState<RoleDefinition | null>(null);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const copyToClipboard = (text: string, keyName: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(keyName);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const getRoleDisplayName = (roleId: string) => {
+    const found = roles.find(r => r.id === roleId);
+    return found ? found.name : getRoleLabel(roleId as UserRole);
+  };
+
+  const handleOpenCreate = () => {
+    setCreateForm({
+      fullName: '',
+      phone: '',
+      email: '',
+      password: `WHD${Math.floor(1000 + Math.random() * 9000)}!`,
+      role: roles[0]?.id || 'receptionist',
+      department: 'Opérations Générales',
+    });
+    setIsCreateModalOpen(true);
+  };
+
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.fullName.trim()) {
+      showToast('Veuillez renseigner le nom complet.', 'error');
+      return;
+    }
+
+    addUser({
+      fullName: createForm.fullName.trim(),
+      phone: createForm.phone.trim() || undefined,
+      email: createForm.email.trim() || `${createForm.phone.trim()}@whieda.com`,
+      role: createForm.role,
+      department: createForm.department.trim() || undefined,
+      active: true,
+    }, createForm.password.trim() || 'Whieda@2026!');
+
+    setIsCreateModalOpen(false);
+    showToast(`Compte créé pour ${createForm.fullName}.`);
+  };
+
+  const handleOpenEdit = (user: User) => {
+    setEditingUser(user);
+    setEditForm({
+      fullName: user.fullName,
+      phone: user.phone || '',
+      email: user.email,
+      password: user.password || 'Whieda@2026!',
+      role: user.role,
+      department: user.department || '',
+      active: user.active,
+    });
+  };
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    updateUser(editingUser.id, {
+      fullName: editForm.fullName.trim(),
+      phone: editForm.phone.trim() || undefined,
+      email: editForm.email.trim().toLowerCase(),
+      password: editForm.password.trim(),
+      role: editForm.role,
+      department: editForm.department.trim() || undefined,
+      active: editForm.active,
+    });
+
+    showToast(`Informations de ${editForm.fullName} mises à jour.`);
+    setEditingUser(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!userToDelete) return;
+    deleteUser(userToDelete.id);
+    showToast(`Compte employé ${userToDelete.fullName} supprimé.`);
+    setUserToDelete(null);
+  };
+
+  const handleResetCredentialsConfirm = () => {
+    resetDefaultCredentials();
+    setIsResetConfirmOpen(false);
+    showToast('Identifiants par défaut restaurés avec succès.', 'success');
+  };
+
+  const toggleTabInForm = (tabId: string, formType: 'create' | 'edit') => {
+    if (formType === 'create') {
+      setCreateRoleForm(prev => {
+        const exists = prev.allowedTabs.includes(tabId);
+        return { ...prev, allowedTabs: exists ? prev.allowedTabs.filter(t => t !== tabId) : [...prev.allowedTabs, tabId] };
+      });
+    } else {
+      setEditRoleForm(prev => {
+        const exists = prev.allowedTabs.includes(tabId);
+        return { ...prev, allowedTabs: exists ? prev.allowedTabs.filter(t => t !== tabId) : [...prev.allowedTabs, tabId] };
+      });
+    }
+  };
+
+  const filteredUsers = users.filter(u => {
+    const q = searchTerm.toLowerCase();
+    const matchesSearch = u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.phone && u.phone.toLowerCase().includes(q));
+    const matchesRole = roleFilter === 'all' || u.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
+
+  const filteredRoles = roles.filter(r => {
+    const q = roleSearchTerm.toLowerCase();
+    return r.name.toLowerCase().includes(q) || r.description.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="space-y-6">
+      {toastMessage && (
+        <div className={`fixed top-4 right-4 z-50 max-w-md p-3.5 rounded-2xl shadow-2xl border backdrop-blur-md flex items-center justify-between gap-3 ${toastMessage.type === 'error' ? 'bg-rose-950 text-rose-100' : 'bg-neutral-900 text-white'}`}>
+          <p className="text-xs font-medium">{toastMessage.text}</p>
+          <button onClick={() => setToastMessage(null)} className="text-white/70 hover:text-white">✕</button>
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* TAB 2: ROLES & RBAC PERMISSIONS                           */}
-      {/* ========================================================= */}
-      {activeSubTab === 'roles' && (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-neutral-900 tracking-tight">Gestion du Personnel, Accès & Rôles (RBAC)</h1>
+          <p className="text-xs text-neutral-500 mt-1">Création des identifiants et affectation des rôles</p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsResetConfirmOpen(true)}
+            className="px-3.5 py-2 bg-white border border-neutral-200 text-neutral-700 rounded-xl text-xs font-semibold flex items-center gap-1.5"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-orange-600" />
+            <span>Accès par Défaut</span>
+          </button>
+
+          {activeSubTab === 'employees' ? (
+            <button
+              onClick={handleOpenCreate}
+              className="px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nouveau Collaborateur</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setCreateRoleForm({ name: '', description: '', color: 'blue', allowedTabs: ['showcase', 'products'] });
+                setIsCreateRoleModalOpen(true);
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-red-600 to-orange-600 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Créer un Rôle</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 border-b border-neutral-200 pb-2">
+        <button
+          onClick={() => setActiveSubTab('employees')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold ${activeSubTab === 'employees' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Personnel ({users.length})</span>
+        </button>
+        <button
+          onClick={() => setActiveSubTab('roles')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold ${activeSubTab === 'roles' ? 'bg-neutral-900 text-white' : 'text-neutral-600 hover:bg-neutral-100'}`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Rôles & Droits ({roles.length})</span>
+        </button>
+      </div>
+
+      {activeSubTab === 'employees' && (
         <div className="space-y-6">
-          <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-xs flex items-center justify-between gap-3">
+          <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-orange-950">
+              <Key className="w-4 h-4 text-orange-600" />
+              <span>Accès rapides par défaut (Tél : +237 600000001 / Pass : Whieda@2026!)</span>
+            </div>
+            <button
+              onClick={() => copyToClipboard('+237 600000001', 'admin')}
+              className="px-3 py-1.5 bg-white border border-neutral-200 rounded-lg text-xs font-semibold text-neutral-700 flex items-center gap-1"
+            >
+              {copiedKey === 'admin' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+              <span>{copiedKey === 'admin' ? 'Copié !' : 'Copier Admin Tél'}</span>
+            </button>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl border border-neutral-200 flex items-center justify-between gap-3">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-3" />
               <input
                 type="text"
-                placeholder="Rechercher un rôle par nom ou description..."
-                value={roleSearchTerm}
-                onChange={e => setRoleSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500"
+                placeholder="Rechercher par nom, téléphone, email..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs border border-neutral-200 rounded-xl"
               />
             </div>
           </div>
 
+          <div className="bg-white rounded-2xl border border-neutral-200 overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-neutral-50 text-neutral-500 font-semibold border-b uppercase text-[10px]">
+                <tr>
+                  <th className="py-3 px-4">Employé</th>
+                  <th className="py-3 px-4">Rôle</th>
+                  <th className="py-3 px-4">Téléphone</th>
+                  <th className="py-3 px-4 text-center">Statut</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 font-medium">
+                {filteredUsers.map(u => (
+                  <tr key={u.id} className="hover:bg-neutral-50">
+                    <td className="py-3.5 px-4 font-bold text-neutral-900">{u.fullName} <span className="block text-[10px] text-neutral-400 font-mono">{u.email}</span></td>
+                    <td className="py-3.5 px-4"><span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-100">{getRoleDisplayName(u.role)}</span></td>
+                    <td className="py-3.5 px-4 font-mono font-bold">{u.phone || 'N/A'}</td>
+                    <td className="py-3.5 px-4 text-center">
+                      <button onClick={() => toggleUserStatus(u.id)} className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.active ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                        {u.active ? 'Actif' : 'Inactif'}
+                      </button>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <button onClick={() => handleOpenEdit(u)} className="p-1.5 bg-neutral-100 text-neutral-700 rounded-lg"><Edit3 className="w-3.5 h-3.5" /></button>
+                      {u.id !== currentUser.id && (
+                        <button onClick={() => setUserToDelete(u)} className="p-1.5 ml-2 bg-neutral-100 text-red-600 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'roles' && (
+        <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredRoles.map(role => (
-              <div key={role.id} className="bg-white rounded-2xl border border-neutral-200 shadow-xs p-5 space-y-4 flex flex-col justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-neutral-900">{role.name}</h3>
-                      <p className="text-[11px] text-neutral-500 mt-0.5">{role.description}</p>
-                    </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-orange-100 text-orange-800 uppercase">
-                      {role.id}
-                    </span>
-                  </div>
-
-                  <div className="space-y-1.5 pt-2 border-t border-neutral-100">
-                    <span className="text-[11px] font-semibold text-neutral-700 block">
-                      Modules Autorisés ({role.allowedTabs.length}) :
-                    </span>
-                    <div className="flex flex-wrap gap-1">
-                      {role.allowedTabs.map(tabId => {
-                        const mod = AVAILABLE_MODULES.find(m => m.id === tabId);
-                        return (
-                          <span key={tabId} className="px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded text-[10px] font-medium">
-                            {mod ? mod.label : tabId}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
+              <div key={role.id} className="bg-white rounded-2xl border p-5 space-y-4 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-sm font-bold">{role.name}</h3>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">{role.description}</p>
+                  <div className="mt-2 text-[10px] text-neutral-600">Modules : {role.allowedTabs.length} autorisés</div>
                 </div>
-
-                <div className="pt-3 border-t border-neutral-100 flex items-center justify-end gap-1.5">
-                  <button
-                    onClick={() => handleOpenEditRole(role)}
-                    className="px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
-                  >
-                    <Edit3 className="w-3 h-3 text-orange-600" />
-                    <span>Modifier les Droits</span>
-                  </button>
-                  {['admin', 'doctor', 'accountant', 'cashier', 'receptionist', 'partner'].includes(role.id) ? (
-                    <span className="text-[10px] text-neutral-400 italic px-2">Système</span>
-                  ) : (
-                    <button
-                      onClick={() => setRoleToDelete(role)}
-                      className="p-1.5 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Supprimer ce rôle"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                <div className="pt-3 border-t flex justify-end">
+                  <button onClick={() => { setEditingRole(role); setEditRoleForm({ name: role.name, description: role.description, color: role.color, allowedTabs: [...role.allowedTabs] }); }} className="px-3 py-1 bg-neutral-100 rounded text-xs font-semibold">Modifier</button>
                 </div>
               </div>
             ))}
@@ -271,96 +373,103 @@
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* MODALS : CREATE & EDIT EMPLOYEES / ROLES                  */}
-      {/* ========================================================= */}
-
-      {/* 1. Create Employee Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden border border-neutral-200 text-xs">
-            <div className="px-6 py-4 bg-gradient-to-r from-red-600 to-orange-600 text-white flex items-center justify-between">
-              <h3 className="font-bold text-sm flex items-center gap-2">
-                <UserPlus className="w-4 h-4" />
-                <span>Créer un Nouveau Collaborateur</span>
-              </h3>
-              <button onClick={() => setIsCreateModalOpen(false)} className="text-white/80 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
+        <div className="fixed inset-0 z-50 bg-neutral-900/65 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 text-xs">
+            <h3 className="font-bold text-sm">Nouveau Collaborateur</h3>
+            <form onSubmit={handleCreateSubmit} className="space-y-3">
+              <input type="text" placeholder="Nom complet" value={createForm.fullName} onChange={e => setCreateForm({ ...createForm, fullName: e.target.value })} required className="w-full p-2 border rounded" />
+              <input type="text" placeholder="Téléphone (ex: 699001122)" value={createForm.phone} onChange={e => setCreateForm({ ...createForm, phone: e.target.value })} className="w-full p-2 border rounded font-mono" />
+              <input type="text" placeholder="Mot de passe" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} required className="w-full p-2 border rounded font-mono" />
+              <select value={createForm.role} onChange={e => setCreateForm({ ...createForm, role: e.target.value as UserRole })} className="w-full p-2 border rounded bg-white font-bold">
+                {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setIsCreateModalOpen(false)} className="px-3 py-1.5 border rounded">Annuler</button>
+                <button type="submit" className="px-3 py-1.5 bg-orange-600 text-white rounded font-bold">Créer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingUser && (
+        <div className="fixed inset-0 z-50 bg-neutral-900/65 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 text-xs">
+            <h3 className="font-bold text-sm">Modifier le Collaborateur</h3>
+            <form onSubmit={handleEditSubmit} className="space-y-3">
+              <input type="text" value={editForm.fullName} onChange={e => setEditForm({ ...editForm, fullName: e.target.value })} required className="w-full p-2 border rounded" />
+              <input type="text" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} className="w-full p-2 border rounded font-mono" />
+              <input type="text" value={editForm.password} onChange={e => setEditForm({ ...editForm, password: e.target.value })} required className="w-full p-2 border rounded font-mono" />
+              <select value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value as UserRole })} className="w-full p-2 border rounded bg-white font-bold">
+                {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setEditingUser(null)} className="px-3 py-1.5 border rounded">Annuler</button>
+                <button type="submit" className="px-3 py-1.5 bg-neutral-900 text-white rounded font-bold">Enregistrer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {(isCreateRoleModalOpen || editingRole) && (
+        <div className="fixed inset-0 z-50 bg-neutral-900/65 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4 text-xs max-h-[80vh] overflow-y-auto">
+            <h3 className="font-bold text-sm">{editingRole ? 'Modifier le Rôle' : 'Créer un Rôle'}</h3>
+            <form onSubmit={e => { e.preventDefault(); if (editingRole) { updateRole(editingRole.id, editRoleForm); setEditingRole(null); } else { addRole(createRoleForm); setIsCreateRoleModalOpen(false); } showToast('Rôle enregistré.'); }} className="space-y-3">
+              <input type="text" placeholder="Nom du rôle" value={editingRole ? editRoleForm.name : createRoleForm.name} onChange={e => editingRole ? setEditRoleForm({ ...editRoleForm, name: e.target.value }) : setCreateRoleForm({ ...createRoleForm, name: e.target.value })} required className="w-full p-2 border rounded" />
+              <input type="text" placeholder="Description" value={editingRole ? editRoleForm.description : createRoleForm.description} onChange={e => editingRole ? setEditRoleForm({ ...editRoleForm, description: e.target.value }) : setCreateRoleForm({ ...createRoleForm, description: e.target.value })} className="w-full p-2 border rounded" />
+              
+              <div className="space-y-1">
+                <label className="font-semibold">Modules autorisés :</label>
+                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border p-2 rounded">
+                  {AVAILABLE_MODULES.map(mod => {
+                    const isChecked = editingRole ? editRoleForm.allowedTabs.includes(mod.id) : createRoleForm.allowedTabs.includes(mod.id);
+                    return (
+                      <div key={mod.id} onClick={() => toggleTabInForm(mod.id, editingRole ? 'edit' : 'create')} className={`p-2 rounded border cursor-pointer ${isChecked ? 'bg-orange-50 border-orange-300 font-bold' : 'bg-white'}`}>
+                        <input type="checkbox" checked={isChecked} onChange={() => {}} className="mr-1.5" />
+                        <span>{mod.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => { setIsCreateRoleModalOpen(false); setEditingRole(null); }} className="px-3 py-1.5 border rounded">Annuler</button>
+                <button type="submit" className="px-3 py-1.5 bg-orange-600 text-white rounded font-bold">Valider</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 bg-neutral-900/65 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4 text-xs">
+            <h3 className="font-bold text-sm text-red-600">Confirmer la suppression</h3>
+            <p>Voulez-vous vraiment supprimer le compte de <strong>{userToDelete.fullName}</strong> ?</p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setUserToDelete(null)} className="px-3 py-1.5 border rounded">Annuler</button>
+              <button onClick={handleConfirmDelete} className="px-3 py-1.5 bg-red-600 text-white rounded font-bold">Supprimer</button>
             </div>
+          </div>
+        </div>
+      )}
 
-            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Nom Complet</label>
-                <input
-                  type="text"
-                  placeholder="ex: Dr. Marie Ngono"
-                  value={createForm.fullName}
-                  onChange={e => setCreateForm({ ...createForm, fullName: e.target.value })}
-                  required
-                  className="w-full p-2 border border-neutral-300 rounded-lg font-medium"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Téléphone (Identifiant)</label>
-                  <input
-                    type="text"
-                    placeholder="+237 6..."
-                    value={createForm.phone}
-                    onChange={e => setCreateForm({ ...createForm, phone: e.target.value })}
-                    className="w-full p-2 border border-neutral-300 rounded-lg font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    placeholder="employe@whieda.com"
-                    value={createForm.email}
-                    onChange={e => setCreateForm({ ...createForm, email: e.target.value })}
-                    className="w-full p-2 border border-neutral-300 rounded-lg font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Mot de Passe</label>
-                  <input
-                    type="text"
-                    value={createForm.password}
-                    onChange={e => setCreateForm({ ...createForm, password: e.target.value })}
-                    required
-                    className="w-full p-2 border border-neutral-300 rounded-lg font-mono font-bold text-orange-600"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-neutral-700 mb-1">Rôle / Profil RBAC</label>
-                  <select
-                    value={createForm.role}
-                    onChange={e => setCreateForm({ ...createForm, role: e.target.value as UserRole })}
-                    className="w-full p-2 border border-neutral-300 rounded-lg bg-white font-bold text-neutral-900"
-                  >
-                    {roles.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-neutral-700 mb-1">Département</label>
-                <input
-                  type="text"
-                  value={createForm.department}
-                  onChange={e => setCreateForm({ ...createForm, department: e.target.value })}
-                  className="w-full p-2 border border-neutral-300 rounded-lg"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
- 
+      {isResetConfirmOpen && (
+        <div className="fixed inset-0 z-50 bg-neutral-900/65 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4 text-xs">
+            <h3 className="font-bold text-sm text-amber-600">Restaurer les Accès</h3>
+            <p>Voulez-vous restaurer les identifiants par défaut des 4 comptes officiels ?</p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setIsResetConfirmOpen(false)} className="px-3 py-1.5 border rounded">Annuler</button>
+              <button onClick={handleResetCredentialsConfirm} className="px-3 py-1.5 bg-amber-600 text-white rounded font-bold">Restaurer</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
